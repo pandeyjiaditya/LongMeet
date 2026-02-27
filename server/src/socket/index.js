@@ -37,7 +37,9 @@ const findUserRoom = (socketId) => {
 
 // ─── Socket.IO initialisation ────────────────────────────────────────
 const initSocket = (server) => {
-  const CLIENT_ORIGIN = (process.env.CLIENT_URL || "http://localhost:3000").replace(/\/+$/, "");
+  const CLIENT_ORIGIN = (
+    process.env.CLIENT_URL || "http://localhost:3000"
+  ).replace(/\/+$/, "");
 
   io = new Server(server, {
     cors: {

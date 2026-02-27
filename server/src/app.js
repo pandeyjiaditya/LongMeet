@@ -11,7 +11,9 @@ const chatRoutes = require("./routes/chat.routes");
 const app = express();
 
 // Strip trailing slash from CLIENT_URL to prevent CORS mismatch
-const CLIENT_ORIGIN = (process.env.CLIENT_URL || "http://localhost:3000").replace(/\/+$/, "");
+const CLIENT_ORIGIN = (
+  process.env.CLIENT_URL || "http://localhost:3000"
+).replace(/\/+$/, "");
 
 // Middleware
 app.use(
