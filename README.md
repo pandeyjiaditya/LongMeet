@@ -82,21 +82,21 @@ Copy the example env files and adjust as needed:
 
 ## Socket.IO Events
 
-| Event                  | Direction       | Description                |
-| ---------------------- | --------------- | -------------------------- |
-| `join-room`            | Client → Server | Join a meeting room        |
-| `user-joined`          | Server → Client | New participant joined     |
-| `offer`                | Peer → Peer     | WebRTC offer               |
-| `answer`               | Peer → Peer     | WebRTC answer              |
-| `ice-candidate`        | Peer → Peer     | ICE candidate exchange     |
-| `toggle-media`         | Client → Server | Mute/unmute audio/video    |
-| `chat-message`         | Bidirectional   | In-meeting chat            |
-| `leave-room`           | Client → Server | Leave meeting              |
-| `watch-party:set-url`  | Client → Server | Share video URL with room  |
-| `watch-party:play`     | Client → Server | Sync play across room      |
-| `watch-party:pause`    | Client → Server | Sync pause across room     |
-| `watch-party:seek`     | Client → Server | Sync seek across room      |
-| `watch-party:stop`     | Client → Server | Stop watch party           |
+| Event                 | Direction       | Description               |
+| --------------------- | --------------- | ------------------------- |
+| `join-room`           | Client → Server | Join a meeting room       |
+| `user-joined`         | Server → Client | New participant joined    |
+| `offer`               | Peer → Peer     | WebRTC offer              |
+| `answer`              | Peer → Peer     | WebRTC answer             |
+| `ice-candidate`       | Peer → Peer     | ICE candidate exchange    |
+| `toggle-media`        | Client → Server | Mute/unmute audio/video   |
+| `chat-message`        | Bidirectional   | In-meeting chat           |
+| `leave-room`          | Client → Server | Leave meeting             |
+| `watch-party:set-url` | Client → Server | Share video URL with room |
+| `watch-party:play`    | Client → Server | Sync play across room     |
+| `watch-party:pause`   | Client → Server | Sync pause across room    |
+| `watch-party:seek`    | Client → Server | Sync seek across room     |
+| `watch-party:stop`    | Client → Server | Stop watch party          |
 
 ## Features
 
