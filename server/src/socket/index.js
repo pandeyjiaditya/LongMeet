@@ -17,7 +17,9 @@ const getRoomUsers = (roomId) => {
 
 const addUserToRoom = (roomId, socketId, userData) => {
   if (!rooms.has(roomId)) rooms.set(roomId, new Map());
-  rooms.get(roomId).set(socketId, { ...userData, joinedAt: new Date() });
+  rooms
+    .get(roomId)
+    .set(socketId, { ...userData, socketId, joinedAt: new Date() });
 };
 
 const removeUserFromRoom = (roomId, socketId) => {
@@ -81,8 +83,15 @@ const initSocket = (server) => {
         socketId: socket.id,
       });
 
-      // Send the full participant list to the new user
-      socket.emit("room-users", getRoomUsers(roomId));
+      // Send the list of ALL existing users (excluding self) so the new
+      // joiner can create peer connections to each of them.
+      const existingUsers = getRoomUsers(roomId).filter(
+        (u) => u.socketId !== socket.id,
+      );
+      socket.emit("all-users", existingUsers);
+
+      // Send the full participant list to everyone for member count
+      io.to(roomId).emit("room-users", getRoomUsers(roomId));
 
       // System message
       const systemMsg = {
