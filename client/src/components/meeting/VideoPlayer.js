@@ -1,6 +1,12 @@
 import React, { useRef, useEffect } from "react";
 
-const VideoPlayer = ({ stream, muted = false, userName, videoRef }) => {
+const VideoPlayer = ({
+  stream,
+  muted = false,
+  userName,
+  videoRef,
+  isScreenShare = false,
+}) => {
   const internalRef = useRef(null);
   const ref = videoRef || internalRef;
 
@@ -11,9 +17,12 @@ const VideoPlayer = ({ stream, muted = false, userName, videoRef }) => {
   }, [stream]);
 
   return (
-    <div className="video-player">
+    <div className={`video-player ${isScreenShare ? "screen-share" : ""}`}>
       <video ref={ref} autoPlay playsInline muted={muted} />
-      <span className="video-label">{userName || "Participant"}</span>
+      <span className="video-label">
+        {isScreenShare && <span className="screen-badge">🖥️</span>}
+        {userName || "Participant"}
+      </span>
     </div>
   );
 };

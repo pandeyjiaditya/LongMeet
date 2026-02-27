@@ -14,13 +14,16 @@ const Meeting = () => {
   const { socket, connectSocket } = useSocket();
   const navigate = useNavigate();
   const [peers, setPeers] = useState({});
+  const [memberCount, setMemberCount] = useState(1);
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isWatchPartyOpen, setIsWatchPartyOpen] = useState(false);
   const [watchPartyUrl, setWatchPartyUrl] = useState(null);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
+  const [screenSharing, setScreenSharing] = useState(false);
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
+  const screenStreamRef = useRef(null);
 
   useEffect(() => {
     connectSocket();
@@ -29,6 +32,9 @@ const Meeting = () => {
     return () => {
       if (localStreamRef.current) {
         localStreamRef.current.getTracks().forEach((track) => track.stop());
+      }
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((track) => track.stop());
       }
     };
   }, []);
@@ -55,6 +61,21 @@ const Meeting = () => {
       });
     });
 
+    // Room users list — update member count
+    socket.on("room-users", (users) => {
+      setMemberCount(users.length);
+    });
+
+    // Another user started screen sharing
+    socket.on("screen-share-started", ({ userId }) => {
+      console.log(`User ${userId} started screen sharing`);
+    });
+
+    // Another user stopped screen sharing
+    socket.on("screen-share-stopped", ({ userId }) => {
+      console.log(`User ${userId} stopped screen sharing`);
+    });
+
     // Watch party URL set by someone
     socket.on("watch-party:url-changed", ({ url }) => {
       setWatchPartyUrl(url);
@@ -69,6 +90,9 @@ const Meeting = () => {
       socket.emit("leave-room", { roomId: meetingId, userId: user?._id });
       socket.off("user-joined");
       socket.off("user-left");
+      socket.off("room-users");
+      socket.off("screen-share-started");
+      socket.off("screen-share-stopped");
       socket.off("watch-party:url-changed");
       socket.off("watch-party:stopped");
     };
@@ -115,21 +139,92 @@ const Meeting = () => {
     }
   };
 
+  const toggleScreenShare = async () => {
+    if (screenSharing) {
+      // Stop screen sharing — revert to camera
+      if (screenStreamRef.current) {
+        screenStreamRef.current.getTracks().forEach((t) => t.stop());
+        screenStreamRef.current = null;
+      }
+      // Restore camera stream to the video element
+      if (localVideoRef.current && localStreamRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setScreenSharing(false);
+      socket?.emit("screen-share-stopped", {
+        roomId: meetingId,
+        userId: user?._id,
+      });
+    } else {
+      // Start screen sharing
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: true,
+          audio: true,
+        });
+        screenStreamRef.current = screenStream;
+
+        // Show screen share in local video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = screenStream;
+        }
+
+        setScreenSharing(true);
+        socket?.emit("screen-share-started", {
+          roomId: meetingId,
+          userId: user?._id,
+        });
+
+        // When user stops sharing via browser UI button
+        screenStream.getVideoTracks()[0].onended = () => {
+          if (localVideoRef.current && localStreamRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+          }
+          screenStreamRef.current = null;
+          setScreenSharing(false);
+          socket?.emit("screen-share-stopped", {
+            roomId: meetingId,
+            userId: user?._id,
+          });
+        };
+      } catch (err) {
+        console.error("Screen share failed:", err);
+      }
+    }
+  };
+
   const leaveMeeting = () => {
     socket?.emit("leave-room", { roomId: meetingId, userId: user?._id });
     if (localStreamRef.current)
       localStreamRef.current.getTracks().forEach((t) => t.stop());
+    if (screenStreamRef.current)
+      screenStreamRef.current.getTracks().forEach((t) => t.stop());
     navigate("/dashboard");
   };
 
   return (
     <div className="meeting-container">
+      {/* Meeting header with room info */}
+      <div className="meeting-header">
+        <div className="meeting-id">
+          <span className="meeting-id-label">Room:</span>
+          <span className="meeting-id-value">{meetingId}</span>
+        </div>
+        <div className="meeting-members">
+          <span className="member-icon">👥</span>
+          <span>
+            {memberCount} participant{memberCount !== 1 ? "s" : ""}
+          </span>
+        </div>
+      </div>
+
       <div className="video-grid">
         <VideoPlayer
           stream={localStreamRef.current}
           muted
-          userName="You"
+          userName={screenSharing ? "You (Screen)" : "You"}
           videoRef={localVideoRef}
+          isScreenShare={screenSharing}
         />
         {Object.values(peers).map((peer) => (
           <VideoPlayer key={peer.socketId} userName={peer.userName} />
@@ -138,8 +233,11 @@ const Meeting = () => {
       <Controls
         audioEnabled={audioEnabled}
         videoEnabled={videoEnabled}
+        screenSharing={screenSharing}
+        memberCount={memberCount}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
+        onToggleScreenShare={toggleScreenShare}
         onLeave={leaveMeeting}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         onToggleWatchParty={() => setIsWatchPartyOpen(!isWatchPartyOpen)}

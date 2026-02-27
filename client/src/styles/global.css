@@ -163,6 +163,42 @@ a:hover {
   height: 100vh;
   background: #0f0f23;
 }
+.meeting-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px;
+  background: #1a1a2e;
+  border-bottom: 1px solid #333;
+}
+.meeting-id {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+.meeting-id-label {
+  color: #888;
+}
+.meeting-id-value {
+  background: #16213e;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-size: 0.85rem;
+  color: #b8b2ff;
+  letter-spacing: 0.5px;
+}
+.meeting-members {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #6c63ff22;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  color: #b8b2ff;
+}
 .video-grid {
   flex: 1;
   display: grid;
@@ -183,6 +219,10 @@ a:hover {
   height: 100%;
   object-fit: cover;
 }
+.video-player.screen-share {
+  border: 2px solid #6c63ff;
+  box-shadow: 0 0 12px #6c63ff44;
+}
 .video-label {
   position: absolute;
   bottom: 8px;
@@ -191,36 +231,93 @@ a:hover {
   padding: 4px 10px;
   border-radius: 6px;
   font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.screen-badge {
+  font-size: 0.75rem;
 }
 
 /* ===== Controls ===== */
 .controls-bar {
   display: flex;
-  justify-content: center;
-  gap: 16px;
-  padding: 16px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 24px;
   background: #1a1a2e;
+  border-top: 1px solid #333;
+}
+.controls-center {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+.member-count {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #6c63ff22;
+  padding: 8px 16px;
+  border-radius: 24px;
+  font-size: 0.9rem;
+  color: #b8b2ff;
+  cursor: default;
+}
+.member-icon {
+  font-size: 1rem;
+}
+.member-number {
+  font-weight: 600;
+  font-size: 1rem;
 }
 .control-btn {
-  padding: 12px 20px;
-  border-radius: 50px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 18px;
+  border-radius: 12px;
   border: none;
   background: #2a2a4a;
   color: #fff;
-  font-size: 1.2rem;
+  font-size: 1rem;
   cursor: pointer;
+  transition: all 0.2s;
+  min-width: 64px;
+}
+.ctrl-icon {
+  font-size: 1.3rem;
+  line-height: 1;
+}
+.ctrl-label {
+  font-size: 0.65rem;
+  letter-spacing: 0.3px;
+  opacity: 0.8;
 }
 .control-btn:hover {
   background: #3a3a5a;
+  transform: translateY(-2px);
 }
 .control-btn.off {
   background: #5a2a2a;
+}
+.control-btn.off:hover {
+  background: #6a3a3a;
+}
+.control-btn.screen-active {
+  background: #6c63ff;
+  box-shadow: 0 0 12px #6c63ff66;
+}
+.control-btn.screen-active:hover {
+  background: #5a52d5;
 }
 .leave-btn {
   background: #d63031;
 }
 .leave-btn:hover {
   background: #b71c1c;
+  transform: translateY(-2px);
 }
 
 /* ===== Chat Panel ===== */
