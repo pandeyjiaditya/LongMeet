@@ -117,7 +117,7 @@ const Meeting = () => {
     tick();
     const id = setInterval(tick, 10000);
     return () => clearInterval(id);
-  }, [joined]);
+  }, [admitted]);
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
