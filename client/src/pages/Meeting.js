@@ -9,6 +9,7 @@ import ChatPanel from "../components/meeting/ChatPanel";
 import WatchParty from "../components/meeting/WatchParty";
 import SyncVideoPlayer from "../components/meeting/SyncVideoPlayer";
 import ParticipantsPanel from "../components/meeting/ParticipantsPanel";
+import PreJoinScreen from "../components/meeting/PreJoinScreen";
 
 // STUN + TURN servers for reliable NAT traversal in production.
 // STUN alone fails when both peers are behind symmetric NATs.
@@ -91,6 +92,9 @@ const Meeting = () => {
   const peersRef = useRef({}); // mutable ref to track RTCPeerConnections
   const [streamReady, setStreamReady] = useState(false);
   const facingModeRef = useRef("user"); // "user" = front, "environment" = back
+  const [readyToJoin, setReadyToJoin] = useState(false); // pre-join screen gate
+  const [preJoinAudio, setPreJoinAudio] = useState(true);
+  const [preJoinVideo, setPreJoinVideo] = useState(true);
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
@@ -240,12 +244,15 @@ const Meeting = () => {
           if (localVideoRef.current)
             localVideoRef.current.srcObject = audioStream;
           setVideoEnabled(false); // camera not available
+          setPreJoinVideo(false);
           setStreamReady(true);
         } catch (err2) {
           console.error("Failed to get any media:", err2);
           // Still allow joining without media
           setVideoEnabled(false);
           setAudioEnabled(false);
+          setPreJoinVideo(false);
+          setPreJoinAudio(false);
           setStreamReady(true);
         }
       }
@@ -270,7 +277,19 @@ const Meeting = () => {
 
   // ─── Socket event handlers for WebRTC signaling ───────────────
   useEffect(() => {
-    if (!socket || !streamReady || !hostCheckDone) return;
+    if (!socket || !streamReady || !hostCheckDone || !readyToJoin) return;
+
+    // Apply pre-join media choices before joining
+    if (!preJoinAudio) {
+      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (audioTrack) audioTrack.stop();
+      setAudioEnabled(false);
+    }
+    if (!preJoinVideo) {
+      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (videoTrack) videoTrack.stop();
+      setVideoEnabled(false);
+    }
 
     // Wait until socket is actually connected before joining
     const joinOrRequest = () => {
@@ -545,6 +564,7 @@ const Meeting = () => {
     meetingId,
     streamReady,
     hostCheckDone,
+    readyToJoin,
     isHost,
     admitted,
     createPeerConnection,
@@ -810,6 +830,64 @@ const Meeting = () => {
   const handleRemoveParticipant = (targetSocketId) => {
     socket?.emit("remove-participant", { roomId: meetingId, targetSocketId });
   };
+
+  // ─── Pre-join media toggles (before entering room) ────────────
+  const preJoinToggleAudio = () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const audioTrack = stream.getAudioTracks()[0];
+    if (audioTrack) {
+      audioTrack.enabled = !audioTrack.enabled;
+      setPreJoinAudio(audioTrack.enabled);
+    } else {
+      setPreJoinAudio(false);
+    }
+  };
+
+  const preJoinToggleVideo = async () => {
+    const stream = localStreamRef.current;
+    if (!stream) return;
+    const videoTrack = stream.getVideoTracks()[0];
+    if (preJoinVideo && videoTrack) {
+      videoTrack.stop();
+      setPreJoinVideo(false);
+    } else if (!preJoinVideo) {
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        const newTrack = newStream.getVideoTracks()[0];
+        const oldTrack = stream.getVideoTracks()[0];
+        if (oldTrack) stream.removeTrack(oldTrack);
+        stream.addTrack(newTrack);
+        setPreJoinVideo(true);
+      } catch (err) {
+        console.error("Could not re-enable camera:", err);
+      }
+    }
+  };
+
+  const handlePreJoinReady = () => {
+    setReadyToJoin(true);
+  };
+
+  // ─── Pre-join screen ──────────────────────────────────────────
+  if (streamReady && hostCheckDone && !readyToJoin) {
+    return (
+      <PreJoinScreen
+        localStream={localStreamRef.current}
+        userName={user?.name}
+        userAvatar={user?.avatar}
+        meetingId={meetingId}
+        audioEnabled={preJoinAudio}
+        videoEnabled={preJoinVideo}
+        onToggleAudio={preJoinToggleAudio}
+        onToggleVideo={preJoinToggleVideo}
+        onJoin={handlePreJoinReady}
+        onCancel={() => navigate("/dashboard")}
+      />
+    );
+  }
 
   // ─── Waiting for approval screen (non-host) ──────────────────
   if (waitingForApproval) {
