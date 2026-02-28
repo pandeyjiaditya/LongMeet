@@ -89,6 +89,7 @@ const Meeting = () => {
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
+  const localCameraPreviewRef = useRef(null); // PiP camera during screen share
   const peersRef = useRef({}); // mutable ref to track RTCPeerConnections
   const [streamReady, setStreamReady] = useState(false);
   const facingModeRef = useRef("user"); // "user" = front, "environment" = back
@@ -928,6 +929,20 @@ const Meeting = () => {
     );
   }
 
+  // ─── PiP: keep camera preview alive while screen sharing ───
+  useEffect(() => {
+    if (
+      screenSharing &&
+      localCameraPreviewRef.current &&
+      localStreamRef.current
+    ) {
+      localCameraPreviewRef.current.srcObject = localStreamRef.current;
+    }
+    if (!screenSharing && localCameraPreviewRef.current) {
+      localCameraPreviewRef.current.srcObject = null;
+    }
+  }, [screenSharing]);
+
   // Build peer entries list for rendering
   const peerEntries = Object.entries(peers);
   const pinnedEntry = pinnedPeer
@@ -936,6 +951,12 @@ const Meeting = () => {
   const unpinnedEntries = pinnedPeer
     ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
     : peerEntries;
+
+  // Smart grid: compute participant count class for CSS
+  const totalInGrid = unpinnedEntries.length + 1; // +1 for local
+  const gridCountClass = pinnedPeer
+    ? "sidebar-grid"
+    : `count-${Math.min(totalInGrid, 10)}`;
 
   return (
     <div className="meeting-container">
@@ -986,8 +1007,16 @@ const Meeting = () => {
           </div>
         )}
 
+        {/* Screen share PiP – shows your camera while sharing screen */}
+        {screenSharing && videoEnabled && (
+          <div className="screen-share-pip">
+            <video ref={localCameraPreviewRef} autoPlay muted playsInline />
+            <span className="pip-label">You</span>
+          </div>
+        )}
+
         {/* Grid of unpinned + local */}
-        <div className={`video-grid ${pinnedPeer ? "sidebar-grid" : ""}`}>
+        <div className={`video-grid ${gridCountClass}`}>
           <VideoPlayer
             stream={localStreamRef.current}
             muted

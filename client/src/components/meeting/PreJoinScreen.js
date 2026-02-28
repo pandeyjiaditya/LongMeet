@@ -119,7 +119,7 @@ const PreJoinScreen = ({
             onClick={handleJoin}
             disabled={joining}
           >
-            {joining ? "Joining..." : "Join Room 🚀"}
+            {joining ? "Joining..." : "Join Room "}
           </button>
           <button className="btn btn-outline" onClick={onCancel}>
             Go Back

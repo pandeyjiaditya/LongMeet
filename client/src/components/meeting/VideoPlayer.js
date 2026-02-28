@@ -91,26 +91,48 @@ const VideoPlayer = ({
         </div>
       </div>
 
-      {/* Hover overlay with details & pin button */}
-      {hovered && !isLocal && onPin && (
-        <div className="video-hover-overlay">
-          <button
-            className={`pin-btn ${isPinned ? "active" : ""}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              onPin();
-            }}
-            title={isPinned ? "Unpin" : "Pin this participant"}
-          >
-            {isPinned ? <MdPushPin /> : <MdOutlinePushPin />}
-          </button>
-        </div>
+      {/* Pin/Unpin controls */}
+      {!isLocal && onPin && (
+        <>
+          {/* Hover overlay — pin button for unpinned tiles */}
+          {!isPinned && hovered && (
+            <div className="video-hover-overlay">
+              <button
+                className="pin-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin();
+                }}
+                title="Pin this participant"
+              >
+                <MdOutlinePushPin />
+              </button>
+            </div>
+          )}
+          {/* Always-visible unpin bar for pinned tile */}
+          {isPinned && (
+            <div className="video-unpin-overlay">
+              <button
+                className="unpin-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPin();
+                }}
+                title="Unpin"
+              >
+                <MdPushPin />
+                <span className="unpin-text">Unpin</span>
+              </button>
+            </div>
+          )}
+        </>
       )}
 
-      {/* Pinned indicator */}
+      {/* Pinned badge */}
       {isPinned && (
         <div className="pinned-indicator">
           <MdPushPin />
+          <span>Pinned</span>
         </div>
       )}
     </div>

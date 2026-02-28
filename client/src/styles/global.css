@@ -921,6 +921,7 @@ a:hover {
   overflow: hidden;
   padding: 12px;
   gap: 12px;
+  position: relative;
 }
 .video-area.has-pinned {
   flex-direction: row;
@@ -929,6 +930,8 @@ a:hover {
   flex: 3;
   position: relative;
   min-height: 0;
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
 }
 .video-area.has-pinned .video-grid {
   flex: 1;
@@ -945,14 +948,48 @@ a:hover {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 12px;
-  padding: 4px;
+  padding: 8px;
   overflow-y: auto;
   align-content: center;
+  justify-content: center;
+}
+/* Smart grid columns based on participant count */
+.video-grid.count-1 {
+  grid-template-columns: 1fr;
+  max-width: 960px;
+  margin: 0 auto;
+}
+.video-grid.count-2 {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.video-grid.count-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.video-grid.count-4 {
+  grid-template-columns: repeat(2, 1fr);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.video-grid.count-5,
+.video-grid.count-6 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.video-grid.count-7,
+.video-grid.count-8,
+.video-grid.count-9 {
+  grid-template-columns: repeat(3, 1fr);
+}
+.video-grid.count-10 {
+  grid-template-columns: repeat(4, 1fr);
 }
 .video-grid.sidebar-grid {
   grid-template-columns: 1fr;
   overflow-y: auto;
   align-content: start;
+  max-width: none;
+  margin: 0;
 }
 
 /* ───── Video Tile ────────────────────────────────────────────── */
@@ -973,11 +1010,11 @@ a:hover {
 }
 .video-tile.screen-share {
   border: 2px solid var(--accent);
-  box-shadow: 0 0 20px var(--accent-glow);
+  box-shadow: 0 0 24px var(--accent-glow);
 }
 .video-tile.pinned {
   border: 2px solid var(--warning);
-  box-shadow: 0 0 16px rgba(251, 191, 36, 0.2);
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.25);
 }
 .video-tile video {
   width: 100%;
@@ -1119,18 +1156,99 @@ a:hover {
 
 .pinned-indicator {
   position: absolute;
-  top: 8px;
-  left: 8px;
+  top: 10px;
+  left: 10px;
   background: var(--warning);
   color: #1a1a2e;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
+  padding: 4px 10px;
+  border-radius: 20px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  font-size: 0.85rem;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
   z-index: 3;
+  box-shadow: 0 2px 8px rgba(251, 191, 36, 0.3);
+}
+.pinned-indicator span {
+  letter-spacing: 0.3px;
+}
+
+/* ───── Unpin overlay (always visible on pinned tile) ───── */
+.video-unpin-overlay {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 5;
+  animation: fadeIn 0.2s;
+}
+.unpin-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: none;
+  background: rgba(251, 191, 36, 0.9);
+  color: #1a1a2e;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+.unpin-btn:hover {
+  background: var(--warning);
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(251, 191, 36, 0.4);
+}
+.unpin-text {
+  font-size: 0.75rem;
+  letter-spacing: 0.3px;
+}
+
+/* ───── Screen Share PiP (camera preview while sharing) ─── */
+.screen-share-pip {
+  position: absolute;
+  bottom: 20px;
+  right: 20px;
+  width: 220px;
+  aspect-ratio: 16/9;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 2px solid var(--accent);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(244, 114, 182, 0.3);
+  z-index: 15;
+  background: var(--bg-secondary);
+  transition: all 0.3s ease;
+  cursor: grab;
+}
+.screen-share-pip:hover {
+  transform: scale(1.04);
+  box-shadow:
+    0 12px 40px rgba(0, 0, 0, 0.6),
+    0 0 0 2px rgba(244, 114, 182, 0.5);
+}
+.screen-share-pip video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.pip-label {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 4px 10px;
+  background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 /* ───── Participants Panel ────────────────────────────────────── */
@@ -2025,6 +2143,21 @@ a:hover {
     gap: 8px;
     padding: 10px;
   }
+  .video-grid.count-1,
+  .video-grid.count-2,
+  .video-grid.count-3,
+  .video-grid.count-4 {
+    max-width: none;
+    margin: 0;
+  }
+  .video-grid.count-3 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .screen-share-pip {
+    width: 160px;
+    bottom: 12px;
+    right: 12px;
+  }
   .controls-bar {
     padding: 10px 12px;
   }
@@ -2175,8 +2308,22 @@ a:hover {
     gap: 6px;
     padding: 8px;
   }
+  .video-grid.count-1,
+  .video-grid.count-2,
+  .video-grid.count-3,
+  .video-grid.count-4 {
+    grid-template-columns: 1fr;
+    max-width: none;
+    margin: 0;
+  }
   .video-tile {
-    border-radius: var(--radius-sm);
+    border-radius: 12px;
+  }
+  .screen-share-pip {
+    width: 120px;
+    bottom: 8px;
+    right: 8px;
+    border-radius: 10px;
   }
   .video-name-text {
     font-size: 0.75rem;
