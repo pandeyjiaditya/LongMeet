@@ -65,6 +65,7 @@ const Meeting = () => {
   const screenStreamRef = useRef(null);
   const peersRef = useRef({}); // mutable ref to track RTCPeerConnections
   const [streamReady, setStreamReady] = useState(false);
+  const facingModeRef = useRef("user"); // "user" = front, "environment" = back
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
@@ -524,6 +525,39 @@ const Meeting = () => {
     }
   };
 
+  // ─── Flip camera (mobile only) ────────────────────────────
+  const flipCamera = useCallback(async () => {
+    if (!videoEnabled || screenSharing) return;
+    const newFacing = facingModeRef.current === "user" ? "environment" : "user";
+    try {
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: newFacing } },
+      });
+      const newVideoTrack = newStream.getVideoTracks()[0];
+      // Swap track in local stream
+      const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (oldTrack) {
+        oldTrack.stop();
+        localStreamRef.current.removeTrack(oldTrack);
+      }
+      localStreamRef.current?.addTrack(newVideoTrack);
+      // Update local preview
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      // Replace video track on every peer connection
+      Object.values(peersRef.current).forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+        if (sender) {
+          sender.replaceTrack(newVideoTrack).catch(console.error);
+        }
+      });
+      facingModeRef.current = newFacing;
+    } catch (err) {
+      console.error("Failed to flip camera:", err);
+    }
+  }, [videoEnabled, screenSharing]);
+
   // Replace the video track on all active peer connections
   const replaceTrackOnAllPeers = (newStream) => {
     if (!newStream) return;
@@ -592,6 +626,7 @@ const Meeting = () => {
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onToggleScreenShare={toggleScreenShare}
+        onFlipCamera={flipCamera}
         onLeave={leaveMeeting}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         onToggleWatchParty={() => setIsWatchPartyOpen(!isWatchPartyOpen)}

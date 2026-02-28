@@ -8,6 +8,7 @@ const Controls = ({
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
+  onFlipCamera,
   onLeave,
   onToggleChat,
   onToggleWatchParty,
@@ -48,6 +49,15 @@ const Controls = ({
           <span className="ctrl-label">
             {screenSharing ? "Stop Share" : "Screen"}
           </span>
+        </button>
+        <button
+          onClick={onFlipCamera}
+          className="control-btn flip-camera-btn"
+          title="Switch camera"
+          disabled={!videoEnabled || screenSharing}
+        >
+          <span className="ctrl-icon">🔄</span>
+          <span className="ctrl-label">Flip</span>
         </button>
         <button
           onClick={onToggleChat}

@@ -324,6 +324,15 @@ a:hover {
   transform: translateY(-2px);
 }
 
+/* Camera flip — hidden on desktop, shown on mobile */
+.flip-camera-btn {
+  display: none !important;
+}
+.flip-camera-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* ===== Chat Panel ===== */
 .chat-panel {
   position: fixed;
@@ -796,6 +805,9 @@ a:hover {
   }
   .ctrl-label {
     font-size: 0.55rem;
+  }
+  .flip-camera-btn {
+    display: flex !important;
   }
   .leave-btn {
     padding: 8px 12px;
