@@ -1,6 +1,17 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 
-const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
+const SYNC_INTERVAL = 3000; // ms — periodic heartbeat from controller
+const DRIFT_THRESHOLD = 1.5; // seconds — correct if drift is larger
+
+const SyncVideoPlayer = ({
+  roomId,
+  socket,
+  user,
+  videoUrl,
+  onClose,
+  isController,
+  hostName,
+}) => {
   const videoRef = useRef(null);
   const iframeRef = useRef(null);
   const [status, setStatus] = useState("");
@@ -66,6 +77,33 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
       setStatus(`⏩ ${userName} seeked`);
     };
 
+    const handleTimeUpdate = ({ currentTime, isPlaying }) => {
+      if (!videoRef.current || isController) return;
+      // Correct drift for non-controllers
+      const drift = Math.abs(videoRef.current.currentTime - currentTime);
+      if (drift > DRIFT_THRESHOLD) {
+        ignoreEvents.current = true;
+        videoRef.current.currentTime = currentTime;
+        setTimeout(() => {
+          ignoreEvents.current = false;
+        }, 300);
+      }
+      // Match play/pause state
+      if (isPlaying && videoRef.current.paused) {
+        ignoreEvents.current = true;
+        videoRef.current.play().catch(() => {});
+        setTimeout(() => {
+          ignoreEvents.current = false;
+        }, 300);
+      } else if (!isPlaying && !videoRef.current.paused) {
+        ignoreEvents.current = true;
+        videoRef.current.pause();
+        setTimeout(() => {
+          ignoreEvents.current = false;
+        }, 300);
+      }
+    };
+
     const handleStopped = ({ userName }) => {
       setStatus(`🛑 ${userName} stopped the watch party`);
       if (onClose) setTimeout(onClose, 1500);
@@ -75,6 +113,7 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
     socket.on("watch-party:play", handlePlay);
     socket.on("watch-party:pause", handlePause);
     socket.on("watch-party:seek", handleSeek);
+    socket.on("watch-party:time-update", handleTimeUpdate);
     socket.on("watch-party:stopped", handleStopped);
 
     return () => {
@@ -82,37 +121,52 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
       socket.off("watch-party:play", handlePlay);
       socket.off("watch-party:pause", handlePause);
       socket.off("watch-party:seek", handleSeek);
+      socket.off("watch-party:time-update", handleTimeUpdate);
       socket.off("watch-party:stopped", handleStopped);
     };
-  }, [socket, videoUrl, roomId, onClose]);
+  }, [socket, videoUrl, roomId, onClose, isController]);
 
-  // ─── Local video event handlers (emit to others) ─────────────
+  // ─── Controller periodically broadcasts their current time ───
+  useEffect(() => {
+    if (!isController || !socket || !videoRef.current) return;
+    const interval = setInterval(() => {
+      if (!videoRef.current) return;
+      socket.emit("watch-party:time-update", {
+        roomId,
+        currentTime: videoRef.current.currentTime,
+        isPlaying: !videoRef.current.paused,
+      });
+    }, SYNC_INTERVAL);
+    return () => clearInterval(interval);
+  }, [isController, socket, roomId]);
+
+  // ─── Local video event handlers (only controller emits) ──────
   const onPlay = useCallback(() => {
-    if (ignoreEvents.current || !videoRef.current) return;
+    if (ignoreEvents.current || !videoRef.current || !isController) return;
     socket?.emit("watch-party:play", {
       roomId,
       currentTime: videoRef.current.currentTime,
       userName: user?.name,
     });
-  }, [socket, roomId, user]);
+  }, [socket, roomId, user, isController]);
 
   const onPause = useCallback(() => {
-    if (ignoreEvents.current || !videoRef.current) return;
+    if (ignoreEvents.current || !videoRef.current || !isController) return;
     socket?.emit("watch-party:pause", {
       roomId,
       currentTime: videoRef.current.currentTime,
       userName: user?.name,
     });
-  }, [socket, roomId, user]);
+  }, [socket, roomId, user, isController]);
 
   const onSeeked = useCallback(() => {
-    if (ignoreEvents.current || !videoRef.current) return;
+    if (ignoreEvents.current || !videoRef.current || !isController) return;
     socket?.emit("watch-party:seek", {
       roomId,
       currentTime: videoRef.current.currentTime,
       userName: user?.name,
     });
-  }, [socket, roomId, user]);
+  }, [socket, roomId, user, isController]);
 
   // Clear status after 3s
   useEffect(() => {
@@ -128,18 +182,23 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
       <div className="sync-player-container">
         <div className="sync-player-header">
           <span>🎬 Watch Party</span>
+          <span className="sync-host-label">
+            {isController
+              ? "🎮 You control"
+              : `🎮 ${hostName || "Host"} controls`}
+          </span>
           {status && <span className="sync-status">{status}</span>}
           <button onClick={onClose} className="close-btn">
             ✕
           </button>
         </div>
 
-        <div className="sync-player-video">
+        <div className="sync-player-video" style={{ position: "relative" }}>
           {isDirectVideo ? (
             <video
               ref={videoRef}
               src={videoUrl}
-              controls
+              controls={isController}
               onPlay={onPlay}
               onPause={onPause}
               onSeeked={onSeeked}
@@ -155,7 +214,6 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
               style={{ width: "100%", height: "70vh", border: "none" }}
             />
           ) : (
-            /* Fallback: try embedding through iframe */
             <iframe
               ref={iframeRef}
               src={videoUrl}
@@ -164,6 +222,13 @@ const SyncVideoPlayer = ({ roomId, socket, user, videoUrl, onClose }) => {
               allowFullScreen
               style={{ width: "100%", height: "70vh", border: "none" }}
             />
+          )}
+
+          {/* Non-controller overlay for direct video — blocks native controls */}
+          {isDirectVideo && !isController && (
+            <div className="sync-player-locked-overlay">
+              <span>🔒 {hostName || "Host"} is controlling playback</span>
+            </div>
           )}
         </div>
 

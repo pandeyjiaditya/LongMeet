@@ -60,6 +60,11 @@ const Meeting = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const chatHistoryLoadedRef = useRef(false);
 
+  // Permission / control state
+  const [watchPartyHost, setWatchPartyHost] = useState(null); // { socketId, userName }
+  const [controlRequest, setControlRequest] = useState(null); // incoming request: { type, fromSocketId, fromUserName }
+  const [controlNotice, setControlNotice] = useState(""); // transient notification
+
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
@@ -306,12 +311,32 @@ const Meeting = () => {
     });
 
     // ── Screen sharing events ───────────────────────────────────
-    socket.on("screen-share-started", ({ userId }) => {
-      console.log(`User ${userId} started screen sharing`);
+    socket.on("screen-share-started", ({ userId, userName, hostSocketId }) => {
+      console.log(`User ${userName} started screen sharing`);
     });
 
     socket.on("screen-share-stopped", ({ userId }) => {
       console.log(`User ${userId} stopped screen sharing`);
+    });
+
+    // ── Permission / control events ─────────────────────────────
+    socket.on("control-request", ({ type, fromSocketId, fromUserName }) => {
+      setControlRequest({ type, fromSocketId, fromUserName });
+    });
+
+    socket.on("control-granted", ({ type, toSocketId, toUserName }) => {
+      if (type === "watch-party") {
+        setWatchPartyHost({ socketId: toSocketId, userName: toUserName });
+      }
+      if (toSocketId === socket.id) {
+        setControlNotice(`You now have ${type} control`);
+      } else {
+        setControlNotice(`${toUserName} now controls ${type}`);
+      }
+    });
+
+    socket.on("control-denied", ({ type }) => {
+      setControlNotice(`Your ${type} control request was denied`);
     });
 
     // ── Chat messages ────────────────────────────────────────────
@@ -333,12 +358,14 @@ const Meeting = () => {
     }
 
     // ── Watch party events ──────────────────────────────────────
-    socket.on("watch-party:url-changed", ({ url }) => {
+    socket.on("watch-party:url-changed", ({ url, hostSocketId, hostName }) => {
       setWatchPartyUrl(url);
+      setWatchPartyHost({ socketId: hostSocketId, userName: hostName });
     });
 
     socket.on("watch-party:stopped", () => {
       setWatchPartyUrl(null);
+      setWatchPartyHost(null);
     });
 
     return () => {
@@ -354,6 +381,9 @@ const Meeting = () => {
       socket.off("user-toggle-media");
       socket.off("screen-share-started");
       socket.off("screen-share-stopped");
+      socket.off("control-request");
+      socket.off("control-granted");
+      socket.off("control-denied");
       socket.off("chat-message");
       socket.off("watch-party:url-changed");
       socket.off("watch-party:stopped");
@@ -505,6 +535,7 @@ const Meeting = () => {
         socket?.emit("screen-share-started", {
           roomId: meetingId,
           userId: user?._id,
+          userName: user?.name,
         });
 
         screenStream.getVideoTracks()[0].onended = () => {
@@ -586,6 +617,13 @@ const Meeting = () => {
     navigate("/dashboard");
   };
 
+  // Auto-dismiss control notice
+  useEffect(() => {
+    if (!controlNotice) return;
+    const t = setTimeout(() => setControlNotice(""), 4000);
+    return () => clearTimeout(t);
+  }, [controlNotice]);
+
   return (
     <div className="meeting-container">
       {/* Meeting header with room info */}
@@ -646,6 +684,8 @@ const Meeting = () => {
         user={user}
         isOpen={isWatchPartyOpen}
         onClose={() => setIsWatchPartyOpen(false)}
+        watchPartyHost={watchPartyHost}
+        isController={!watchPartyHost || watchPartyHost.socketId === socket?.id}
       />
       {watchPartyUrl && (
         <SyncVideoPlayer
@@ -654,7 +694,63 @@ const Meeting = () => {
           user={user}
           videoUrl={watchPartyUrl}
           onClose={() => setWatchPartyUrl(null)}
+          isController={
+            !watchPartyHost || watchPartyHost.socketId === socket?.id
+          }
+          hostName={watchPartyHost?.userName}
         />
+      )}
+
+      {/* Permission request modal */}
+      {controlRequest && (
+        <div className="permission-modal-overlay">
+          <div className="permission-modal">
+            <p>
+              <strong>{controlRequest.fromUserName}</strong> is requesting{" "}
+              <strong>
+                {controlRequest.type === "watch-party"
+                  ? "Watch Party"
+                  : "Screen Share"}
+              </strong>{" "}
+              control
+            </p>
+            <div className="permission-modal-actions">
+              <button
+                className="btn btn-primary"
+                onClick={() => {
+                  socket?.emit("grant-control", {
+                    roomId: meetingId,
+                    type: controlRequest.type,
+                    toSocketId: controlRequest.fromSocketId,
+                    toUserName: controlRequest.fromUserName,
+                  });
+                  setControlRequest(null);
+                }}
+              >
+                Allow
+              </button>
+              <button
+                className="btn btn-outline"
+                onClick={() => {
+                  socket?.emit("deny-control", {
+                    type: controlRequest.type,
+                    toSocketId: controlRequest.fromSocketId,
+                  });
+                  setControlRequest(null);
+                }}
+              >
+                Deny
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Control transfer notification */}
+      {controlNotice && (
+        <div className="control-notice" onClick={() => setControlNotice("")}>
+          {controlNotice}
+        </div>
       )}
     </div>
   );

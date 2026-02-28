@@ -1,6 +1,14 @@
 import React, { useState } from "react";
 
-const WatchParty = ({ roomId, socket, user, isOpen, onClose }) => {
+const WatchParty = ({
+  roomId,
+  socket,
+  user,
+  isOpen,
+  onClose,
+  watchPartyHost,
+  isController,
+}) => {
   const [url, setUrl] = useState("");
 
   if (!isOpen) return null;
@@ -30,6 +38,14 @@ const WatchParty = ({ roomId, socket, user, isOpen, onClose }) => {
     socket.emit("watch-party:stop", { roomId, userName: user?.name });
   };
 
+  const handleRequestControl = () => {
+    socket.emit("request-control", {
+      roomId,
+      type: "watch-party",
+      userName: user?.name,
+    });
+  };
+
   return (
     <div className="watch-party-panel">
       <div className="watch-party-header">
@@ -38,6 +54,22 @@ const WatchParty = ({ roomId, socket, user, isOpen, onClose }) => {
           ✕
         </button>
       </div>
+
+      {/* Show current controller */}
+      {watchPartyHost && (
+        <div className="watch-party-host-info">
+          <span className="host-badge">🎮 Controller:</span>{" "}
+          <strong>{isController ? "You" : watchPartyHost.userName}</strong>
+          {!isController && (
+            <button
+              onClick={handleRequestControl}
+              className="btn btn-outline request-control-btn"
+            >
+              Request Control
+            </button>
+          )}
+        </div>
+      )}
 
       <form onSubmit={handleSetUrl} className="watch-party-form">
         <input

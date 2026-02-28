@@ -7,8 +7,10 @@ let io;
 // ─── In-memory room store ────────────────────────────────────────────
 // rooms Map: roomId → Map<socketId, { userId, userName, joinedAt }>
 const rooms = new Map();
-// watchParty Map: roomId → { url, isPlaying, currentTime, lastUpdated, updatedBy }
+// watchParty Map: roomId → { url, isPlaying, currentTime, lastUpdated, updatedBy, hostSocketId, hostName }
 const watchParties = new Map();
+// screenShare Map: roomId → { hostSocketId, hostName, hostUserId }
+const screenShares = new Map();
 
 const getRoomUsers = (roomId) => {
   if (!rooms.has(roomId)) return [];
@@ -43,8 +45,10 @@ const initSocket = (server) => {
   // Build an array of allowed origins (http + https, with & without trailing slash)
   const base = rawClientUrl.replace(/\/+$/, "");
   const origins = [base];
-  if (base.startsWith("https://")) origins.push(base.replace("https://", "http://"));
-  if (base.startsWith("http://"))  origins.push(base.replace("http://", "https://"));
+  if (base.startsWith("https://"))
+    origins.push(base.replace("https://", "http://"));
+  if (base.startsWith("http://"))
+    origins.push(base.replace("http://", "https://"));
 
   console.log("🌐 Socket.IO allowed origins:", origins);
 
@@ -174,12 +178,71 @@ const initSocket = (server) => {
     });
 
     // ── Screen sharing ───────────────────────────────────────────
-    socket.on("screen-share-started", ({ roomId, userId }) => {
-      socket.to(roomId).emit("screen-share-started", { userId });
+    socket.on("screen-share-started", ({ roomId, userId, userName }) => {
+      screenShares.set(roomId, {
+        hostSocketId: socket.id,
+        hostName: userName,
+        hostUserId: userId,
+      });
+      io.to(roomId).emit("screen-share-started", {
+        userId,
+        userName,
+        hostSocketId: socket.id,
+      });
     });
 
     socket.on("screen-share-stopped", ({ roomId, userId }) => {
-      socket.to(roomId).emit("screen-share-stopped", { userId });
+      screenShares.delete(roomId);
+      io.to(roomId).emit("screen-share-stopped", { userId });
+    });
+
+    // ── Control permission requests ──────────────────────────────
+    // User requests control of screen share or watch party
+    socket.on("request-control", ({ roomId, type, userName }) => {
+      let hostSocketId = null;
+      if (type === "screen") {
+        const ss = screenShares.get(roomId);
+        hostSocketId = ss?.hostSocketId;
+      } else if (type === "watch-party") {
+        const wp = watchParties.get(roomId);
+        hostSocketId = wp?.hostSocketId;
+      }
+      if (hostSocketId && hostSocketId !== socket.id) {
+        // Send request to the host
+        io.to(hostSocketId).emit("control-request", {
+          type,
+          fromSocketId: socket.id,
+          fromUserName: userName,
+        });
+      }
+    });
+
+    // Host grants control
+    socket.on("grant-control", ({ roomId, type, toSocketId, toUserName }) => {
+      if (type === "watch-party") {
+        const wp = watchParties.get(roomId);
+        if (wp) {
+          wp.hostSocketId = toSocketId;
+          wp.hostName = toUserName;
+          wp.updatedBy = toUserName;
+        }
+      } else if (type === "screen") {
+        const ss = screenShares.get(roomId);
+        if (ss) {
+          ss.hostSocketId = toSocketId;
+          ss.hostName = toUserName;
+        }
+      }
+      io.to(roomId).emit("control-granted", {
+        type,
+        toSocketId,
+        toUserName,
+      });
+    });
+
+    // Host denies control
+    socket.on("deny-control", ({ type, toSocketId }) => {
+      io.to(toSocketId).emit("control-denied", { type });
     });
 
     // ── Watch Party — synced video/content ───────────────────────
@@ -191,8 +254,15 @@ const initSocket = (server) => {
         currentTime: 0,
         lastUpdated: Date.now(),
         updatedBy: userName,
+        hostSocketId: socket.id,
+        hostName: userName,
       });
-      io.to(roomId).emit("watch-party:url-changed", { url, userName });
+      io.to(roomId).emit("watch-party:url-changed", {
+        url,
+        userName,
+        hostSocketId: socket.id,
+        hostName: userName,
+      });
       console.log(`🎬 ${userName} set watch URL in ${roomId}: ${url}`);
     });
 
@@ -200,7 +270,15 @@ const initSocket = (server) => {
     socket.on("watch-party:request-sync", ({ roomId }) => {
       const state = watchParties.get(roomId);
       if (state) {
-        socket.emit("watch-party:sync", state);
+        // Adjust currentTime based on elapsed time if playing
+        let adjustedTime = state.currentTime;
+        if (state.isPlaying && state.lastUpdated) {
+          adjustedTime += (Date.now() - state.lastUpdated) / 1000;
+        }
+        socket.emit("watch-party:sync", {
+          ...state,
+          currentTime: adjustedTime,
+        });
       }
     });
 
@@ -239,6 +317,22 @@ const initSocket = (server) => {
       socket.to(roomId).emit("watch-party:seek", { currentTime, userName });
     });
 
+    // Periodic time sync — controller broadcasts their current time
+    socket.on(
+      "watch-party:time-update",
+      ({ roomId, currentTime, isPlaying }) => {
+        const state = watchParties.get(roomId);
+        if (state) {
+          state.currentTime = currentTime;
+          state.isPlaying = isPlaying;
+          state.lastUpdated = Date.now();
+        }
+        socket
+          .to(roomId)
+          .emit("watch-party:time-update", { currentTime, isPlaying });
+      },
+    );
+
     // Stop / close watch party
     socket.on("watch-party:stop", ({ roomId, userName }) => {
       watchParties.delete(roomId);
@@ -256,6 +350,33 @@ const handleLeave = async (socket, roomId) => {
   socket.leave(roomId);
 
   if (user) {
+    // If this user was the screen share host, clean up
+    const ss = screenShares.get(roomId);
+    if (ss && ss.hostSocketId === socket.id) {
+      screenShares.delete(roomId);
+      io.to(roomId).emit("screen-share-stopped", { userId: user.userId });
+    }
+
+    // If this user was the watch party host, transfer to another user or stop
+    const wp = watchParties.get(roomId);
+    if (wp && wp.hostSocketId === socket.id) {
+      const remaining = getRoomUsers(roomId).filter(
+        (u) => u.socketId !== socket.id,
+      );
+      if (remaining.length > 0) {
+        wp.hostSocketId = remaining[0].socketId;
+        wp.hostName = remaining[0].userName;
+        io.to(roomId).emit("control-granted", {
+          type: "watch-party",
+          toSocketId: remaining[0].socketId,
+          toUserName: remaining[0].userName,
+        });
+      } else {
+        watchParties.delete(roomId);
+        io.to(roomId).emit("watch-party:stopped", { userName: user.userName });
+      }
+    }
+
     // Broadcast leave event
     socket.to(roomId).emit("user-left", {
       userId: user.userId,
