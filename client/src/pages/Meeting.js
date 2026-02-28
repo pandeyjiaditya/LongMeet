@@ -116,6 +116,9 @@ const Meeting = () => {
         return peersRef.current[remoteSocketId];
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
+      // Track negotiation state to avoid glare
+      pc._makingOffer = false;
+      pc._isInitiator = isInitiator;
 
       const stream = screenStreamRef.current || localStreamRef.current;
       if (stream) {
@@ -152,6 +155,19 @@ const Meeting = () => {
           pc.iceConnectionState === "failed"
         ) {
           cleanupPeer(remoteSocketId);
+        }
+      };
+
+      pc.onnegotiationneeded = async () => {
+        try {
+          pc._makingOffer = true;
+          const offer = await pc.createOffer();
+          if (pc.signalingState !== "stable") return;
+          await pc.setLocalDescription(offer);
+          socket?.emit("offer", { to: remoteSocketId, offer });
+        } catch {
+        } finally {
+          pc._makingOffer = false;
         }
       };
 
@@ -351,8 +367,8 @@ const Meeting = () => {
       setControlNotice("The host has left the meeting.");
     });
 
-    socket.on("all-users", async (users) => {
-      for (const u of users) {
+    socket.on("all-users", (users) => {
+      users.forEach((u) => {
         peersInfoRef.current[u.socketId] = {
           userName: u.userName,
           avatar: u.avatar || "",
@@ -364,18 +380,14 @@ const Meeting = () => {
             videoEnabled: u.videoEnabled !== false,
           },
         }));
-        const pc = createPeerConnection(
+        // onnegotiationneeded fires automatically after addTrack
+        createPeerConnection(
           u.socketId,
           u.userName,
           true,
           u.avatar || "",
         );
-        try {
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          socket.emit("offer", { to: u.socketId, offer });
-        } catch {}
-      }
+      });
     });
 
     socket.on("user-joined", (data) => {
@@ -407,8 +419,22 @@ const Meeting = () => {
       const peerAvatar = getPeerAvatar(from);
 
       const pc = createPeerConnection(from, userName, false, peerAvatar);
+
+      // Perfect negotiation: handle incoming offer even during own negotiation
+      const offerCollision = pc._makingOffer || pc.signalingState !== "stable";
+      const isPolite = !pc._isInitiator;
+
+      if (offerCollision && !isPolite) return; // impolite peer ignores colliding offer
+
       try {
-        await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        if (offerCollision) {
+          await Promise.all([
+            pc.setLocalDescription({ type: "rollback" }),
+            pc.setRemoteDescription(new RTCSessionDescription(offer)),
+          ]);
+        } else {
+          await pc.setRemoteDescription(new RTCSessionDescription(offer));
+        }
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { to: from, answer });
@@ -614,6 +640,8 @@ const Meeting = () => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
           if (sender) {
             sender.replaceTrack(newAudioTrack).catch(console.error);
+          } else {
+            pc.addTrack(newAudioTrack, localStreamRef.current);
           }
         });
         setAudioEnabled(true);
@@ -677,6 +705,8 @@ const Meeting = () => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "video");
           if (sender) {
             sender.replaceTrack(newVideoTrack).catch(console.error);
+          } else {
+            pc.addTrack(newVideoTrack, localStreamRef.current);
           }
         });
         if (localVideoRef.current) {

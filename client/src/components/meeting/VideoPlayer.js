@@ -29,6 +29,26 @@ const VideoPlayer = ({
     if (stream && ref.current) ref.current.srcObject = stream;
   }, [stream, ref]);
 
+  // Force video element to pick up track changes within the same stream
+  useEffect(() => {
+    if (!stream || !ref.current) return;
+
+    const handleTrackChange = () => {
+      if (ref.current && ref.current.srcObject === stream) {
+        // Re-assign srcObject to nudge the video element
+        ref.current.srcObject = stream;
+      }
+    };
+
+    stream.addEventListener("addtrack", handleTrackChange);
+    stream.addEventListener("removetrack", handleTrackChange);
+
+    return () => {
+      stream.removeEventListener("addtrack", handleTrackChange);
+      stream.removeEventListener("removetrack", handleTrackChange);
+    };
+  }, [stream, ref]);
+
   useEffect(() => {
     const videoEl = ref.current;
     if (!videoEl) return;
