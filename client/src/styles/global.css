@@ -1548,6 +1548,98 @@ a:hover {
   cursor: not-allowed;
 }
 
+/* ───── Layout Switcher ───────────────────────────────────────── */
+.layout-switcher-wrapper {
+  position: relative;
+}
+.layout-dropdown {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(13, 13, 26, 0.97);
+  backdrop-filter: blur(24px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 6px;
+  min-width: 220px;
+  z-index: 50;
+  box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.5);
+  animation: fadeInUp 0.15s ease;
+}
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+.layout-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-align: left;
+}
+.layout-option:hover {
+  background: var(--bg-glass);
+  color: var(--text-primary);
+}
+.layout-option.active {
+  background: rgba(244, 114, 182, 0.15);
+  color: var(--accent-light);
+}
+.layout-option.disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.layout-option.disabled:hover {
+  background: transparent;
+  color: var(--text-secondary);
+}
+.layout-option-icon {
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+.layout-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.layout-option-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: var(--font-main);
+}
+.layout-option-desc {
+  font-size: 0.7rem;
+  opacity: 0.6;
+  font-family: var(--font-main);
+}
+
+/* ───── Screen Only layout override ──────────────────────────── */
+.video-area.layout-screenOnly {
+  justify-content: center;
+  align-items: center;
+}
+.video-area.layout-screenOnly .pinned-video-section {
+  flex: 1;
+  max-width: 100%;
+  max-height: 100%;
+}
+
 /* ───── Chat Panel ────────────────────────────────────────────── */
 .chat-panel {
   width: 340px;
@@ -2445,6 +2537,22 @@ a:hover {
   }
   .flip-camera-btn {
     display: flex !important;
+  }
+  .layout-dropdown {
+    min-width: 190px;
+    right: 0;
+    left: auto;
+    transform: none;
+  }
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
   }
   .leave-btn {
     padding: 8px 12px;

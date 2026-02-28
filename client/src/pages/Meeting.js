@@ -65,6 +65,8 @@ const Meeting = () => {
 
   // Remote media state: { [socketId]: { audioEnabled: bool, videoEnabled: bool } }
   const [remoteMediaState, setRemoteMediaState] = useState({});
+  // Track which remote peers are screen sharing: { [socketId]: boolean }
+  const [remoteScreenSharing, setRemoteScreenSharing] = useState({});
   // Pinned participant socketId (null = no pin, use grid layout)
   const [pinnedPeer, setPinnedPeer] = useState(null);
   // Participants panel visibility
@@ -98,6 +100,8 @@ const Meeting = () => {
   const [preJoinAudio, setPreJoinAudio] = useState(true);
   const [preJoinVideo, setPreJoinVideo] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
+  // Layout mode: "gallery" | "spotlight" | "screenOnly"
+  const [layoutMode, setLayoutMode] = useState("gallery");
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
@@ -191,6 +195,11 @@ const Meeting = () => {
       return updated;
     });
     setRemoteMediaState((prev) => {
+      const updated = { ...prev };
+      delete updated[socketId];
+      return updated;
+    });
+    setRemoteScreenSharing((prev) => {
       const updated = { ...prev };
       delete updated[socketId];
       return updated;
@@ -477,12 +486,18 @@ const Meeting = () => {
     );
 
     // ── Screen sharing events ───────────────────────────────────
-    socket.on("screen-share-started", ({ userId, userName, hostSocketId }) => {
+    socket.on("screen-share-started", ({ userId, userName, socketId: sId }) => {
       console.log(`User ${userName} started screen sharing`);
+      if (sId) {
+        setRemoteScreenSharing((prev) => ({ ...prev, [sId]: true }));
+      }
     });
 
-    socket.on("screen-share-stopped", ({ userId }) => {
+    socket.on("screen-share-stopped", ({ userId, socketId: sId }) => {
       console.log(`User ${userId} stopped screen sharing`);
+      if (sId) {
+        setRemoteScreenSharing((prev) => ({ ...prev, [sId]: false }));
+      }
     });
 
     // ── Permission / control events ─────────────────────────────
@@ -640,17 +655,12 @@ const Meeting = () => {
     if (screenSharing) {
       // While screen sharing, toggle only affects the camera stream (for PiP),
       // NOT the screen share being sent to peers or shown in the main tile.
+      // Do NOT emit toggle-media — peers still see the screen share track.
       if (videoEnabled) {
         // Turn camera OFF — stop the camera track but keep screen share going
         const camTrack = localStreamRef.current?.getVideoTracks()[0];
         if (camTrack) camTrack.stop();
         setVideoEnabled(false);
-        socket?.emit("toggle-media", {
-          roomId: meetingId,
-          userId: user?._id,
-          type: "video",
-          enabled: false,
-        });
       } else {
         // Turn camera ON — re-acquire camera into localStreamRef (PiP only)
         try {
@@ -666,12 +676,6 @@ const Meeting = () => {
             localCameraPreviewRef.current.srcObject = localStreamRef.current;
           }
           setVideoEnabled(true);
-          socket?.emit("toggle-media", {
-            roomId: meetingId,
-            userId: user?._id,
-            type: "video",
-            enabled: true,
-          });
         } catch (err) {
           console.error("Failed to re-enable camera during screen share:", err);
         }
@@ -1003,16 +1007,65 @@ const Meeting = () => {
 
   // Build peer entries list for rendering
   const peerEntries = Object.entries(peers);
-  const pinnedEntry = pinnedPeer
-    ? peerEntries.find(([sid]) => sid === pinnedPeer)
-    : null;
-  const unpinnedEntries = pinnedPeer
-    ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
-    : peerEntries;
+  const isLocalPinned = pinnedPeer === "local";
+  const pinnedEntry =
+    pinnedPeer && pinnedPeer !== "local"
+      ? peerEntries.find(([sid]) => sid === pinnedPeer)
+      : null;
+  const unpinnedEntries =
+    pinnedPeer && pinnedPeer !== "local"
+      ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
+      : peerEntries;
+
+  // Determine if anyone is screen sharing (remote or local)
+  const anyoneScreenSharing =
+    screenSharing || Object.values(remoteScreenSharing).some((v) => v);
+
+  // Find which remote peer is screen sharing (for spotlight/screen-only modes)
+  const screenSharerSocketId = Object.entries(remoteScreenSharing).find(
+    ([, v]) => v,
+  )?.[0];
+
+  // Effective layout: override layout when relevant
+  // "screenOnly" only makes sense when someone is sharing screen
+  const effectiveLayout =
+    layoutMode === "screenOnly" && !anyoneScreenSharing
+      ? "gallery"
+      : layoutMode;
+
+  // In spotlight mode, auto-pin the screen sharer or first peer
+  const spotlightPinned =
+    effectiveLayout === "spotlight"
+      ? screenSharing
+        ? "local"
+        : screenSharerSocketId || peerEntries[0]?.[0] || null
+      : null;
+
+  // Resolve who is actually pinned (manual pin overrides spotlight unless layout is screen-only)
+  const resolvedPin =
+    effectiveLayout === "screenOnly"
+      ? screenSharing
+        ? "local"
+        : screenSharerSocketId || null
+      : effectiveLayout === "spotlight"
+        ? spotlightPinned
+        : pinnedPeer;
+
+  const resolvedPinnedEntry =
+    resolvedPin && resolvedPin !== "local"
+      ? peerEntries.find(([sid]) => sid === resolvedPin)
+      : null;
+  const resolvedIsLocalPinned = resolvedPin === "local";
+  const resolvedUnpinnedEntries =
+    resolvedPin && resolvedPin !== "local"
+      ? peerEntries.filter(([sid]) => sid !== resolvedPin)
+      : peerEntries;
 
   // Smart grid: compute participant count class for CSS
-  const totalInGrid = unpinnedEntries.length + 1; // +1 for local
-  const gridCountClass = pinnedPeer
+  const totalInGrid = resolvedIsLocalPinned
+    ? resolvedUnpinnedEntries.length
+    : resolvedUnpinnedEntries.length + 1; // +1 for local
+  const gridCountClass = resolvedPin
     ? "sidebar-grid"
     : `count-${Math.min(totalInGrid, 10)}`;
 
@@ -1120,36 +1173,71 @@ const Meeting = () => {
       <div
         className={`meeting-body${isChatOpen ? " chat-open" : ""}${isParticipantsPanelOpen ? " participants-open" : ""}`}
       >
-        <div className={`video-area ${pinnedPeer ? "has-pinned" : ""}`}>
-          {/* Pinned (spotlight) view */}
-          {pinnedEntry && (
+        <div
+          className={`video-area ${resolvedPin ? "has-pinned" : ""} layout-${effectiveLayout}`}
+        >
+          {/* Pinned (spotlight) view — remote peer pinned */}
+          {resolvedPinnedEntry && (
             <div className="pinned-video-section">
               <VideoPlayer
-                stream={pinnedEntry[1].stream}
-                userName={pinnedEntry[1].userName}
-                avatar={pinnedEntry[1].avatar}
+                stream={resolvedPinnedEntry[1].stream}
+                userName={resolvedPinnedEntry[1].userName}
+                avatar={resolvedPinnedEntry[1].avatar}
                 videoEnabled={
-                  remoteMediaState[pinnedEntry[0]]?.videoEnabled ?? true
+                  remoteMediaState[resolvedPinnedEntry[0]]?.videoEnabled ?? true
                 }
                 audioEnabled={
-                  remoteMediaState[pinnedEntry[0]]?.audioEnabled ?? true
+                  remoteMediaState[resolvedPinnedEntry[0]]?.audioEnabled ?? true
                 }
+                isScreenShare={!!remoteScreenSharing[resolvedPinnedEntry[0]]}
                 isPinned={true}
-                onPin={() => setPinnedPeer(null)}
+                onPin={
+                  effectiveLayout === "gallery"
+                    ? () => setPinnedPeer(null)
+                    : undefined
+                }
                 isHost={
-                  roomUsers.find((u) => u.socketId === pinnedEntry[0])
+                  roomUsers.find((u) => u.socketId === resolvedPinnedEntry[0])
                     ?.userId === hostUserId
                 }
               />
               {isHost && (
                 <button
                   className="remove-participant-btn"
-                  title={`Remove ${pinnedEntry[1].userName}`}
-                  onClick={() => handleRemoveParticipant(pinnedEntry[0])}
+                  title={`Remove ${resolvedPinnedEntry[1].userName}`}
+                  onClick={() =>
+                    handleRemoveParticipant(resolvedPinnedEntry[0])
+                  }
                 >
                   ✕
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Pinned (spotlight) view — local user pinned */}
+          {resolvedIsLocalPinned && (
+            <div className="pinned-video-section">
+              <VideoPlayer
+                stream={localStreamRef.current}
+                muted
+                userName={
+                  screenSharing ? "You (Screen)" : isHost ? "You (Host)" : "You"
+                }
+                videoRef={localVideoRef}
+                isScreenShare={screenSharing}
+                isLocal={true}
+                avatar={user?.avatar || ""}
+                videoEnabled={videoEnabled}
+                audioEnabled={audioEnabled}
+                isPinned={true}
+                onPin={
+                  effectiveLayout === "gallery"
+                    ? () => setPinnedPeer(null)
+                    : undefined
+                }
+                isHost={isHost}
+              />
             </div>
           )}
 
@@ -1171,53 +1259,63 @@ const Meeting = () => {
             </div>
           )}
 
-          {/* Grid of unpinned + local */}
-          <div className={`video-grid ${gridCountClass}`}>
-            <VideoPlayer
-              stream={localStreamRef.current}
-              muted
-              userName={
-                screenSharing ? "You (Screen)" : isHost ? "You (Host)" : "You"
-              }
-              videoRef={localVideoRef}
-              isScreenShare={screenSharing}
-              isLocal={true}
-              avatar={user?.avatar || ""}
-              videoEnabled={videoEnabled}
-              audioEnabled={audioEnabled}
-              isHost={isHost}
-            />
-            {unpinnedEntries.map(([socketId, peer]) => (
-              <div key={socketId} className="video-wrapper-outer">
+          {/* Grid of unpinned + local — hidden in screenOnly mode */}
+          {effectiveLayout !== "screenOnly" && (
+            <div className={`video-grid ${gridCountClass}`}>
+              {!resolvedIsLocalPinned && (
                 <VideoPlayer
-                  stream={peer.stream}
-                  userName={peer.userName}
-                  avatar={peer.avatar}
-                  videoEnabled={
-                    remoteMediaState[socketId]?.videoEnabled ?? true
+                  stream={localStreamRef.current}
+                  muted
+                  userName={
+                    screenSharing
+                      ? "You (Screen)"
+                      : isHost
+                        ? "You (Host)"
+                        : "You"
                   }
-                  audioEnabled={
-                    remoteMediaState[socketId]?.audioEnabled ?? true
-                  }
-                  isPinned={false}
-                  onPin={() => setPinnedPeer(socketId)}
-                  isHost={
-                    roomUsers.find((u) => u.socketId === socketId)?.userId ===
-                    hostUserId
-                  }
+                  videoRef={localVideoRef}
+                  isScreenShare={screenSharing}
+                  isLocal={true}
+                  avatar={user?.avatar || ""}
+                  videoEnabled={videoEnabled}
+                  audioEnabled={audioEnabled}
+                  onPin={() => setPinnedPeer("local")}
+                  isHost={isHost}
                 />
-                {isHost && (
-                  <button
-                    className="remove-participant-btn"
-                    title={`Remove ${peer.userName}`}
-                    onClick={() => handleRemoveParticipant(socketId)}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
+              )}
+              {resolvedUnpinnedEntries.map(([socketId, peer]) => (
+                <div key={socketId} className="video-wrapper-outer">
+                  <VideoPlayer
+                    stream={peer.stream}
+                    userName={peer.userName}
+                    avatar={peer.avatar}
+                    videoEnabled={
+                      remoteMediaState[socketId]?.videoEnabled ?? true
+                    }
+                    audioEnabled={
+                      remoteMediaState[socketId]?.audioEnabled ?? true
+                    }
+                    isScreenShare={!!remoteScreenSharing[socketId]}
+                    isPinned={false}
+                    onPin={() => setPinnedPeer(socketId)}
+                    isHost={
+                      roomUsers.find((u) => u.socketId === socketId)?.userId ===
+                      hostUserId
+                    }
+                  />
+                  {isHost && (
+                    <button
+                      className="remove-participant-btn"
+                      title={`Remove ${peer.userName}`}
+                      onClick={() => handleRemoveParticipant(socketId)}
+                    >
+                      ✕
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {isChatOpen && (
@@ -1264,6 +1362,9 @@ const Meeting = () => {
           setIsParticipantsPanelOpen(!isParticipantsPanelOpen)
         }
         isParticipantsPanelOpen={isParticipantsPanelOpen}
+        layoutMode={layoutMode}
+        onChangeLayout={setLayoutMode}
+        anyoneScreenSharing={anyoneScreenSharing}
       />
       <WatchParty
         roomId={meetingId}

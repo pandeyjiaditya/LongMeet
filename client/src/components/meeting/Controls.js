@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   MdMic,
   MdMicOff,
@@ -11,7 +11,31 @@ import {
   MdCallEnd,
   MdCameraswitch,
   MdPeople,
+  MdGridView,
+  MdFeaturedVideo,
+  MdTv,
 } from "react-icons/md";
+
+const LAYOUT_OPTIONS = [
+  {
+    key: "gallery",
+    label: "Gallery",
+    icon: <MdGridView />,
+    desc: "Equal grid for everyone",
+  },
+  {
+    key: "spotlight",
+    label: "Spotlight",
+    icon: <MdFeaturedVideo />,
+    desc: "One large + sidebar",
+  },
+  {
+    key: "screenOnly",
+    label: "Screen Only",
+    icon: <MdTv />,
+    desc: "Only shared screen",
+  },
+];
 
 const Controls = ({
   audioEnabled,
@@ -29,7 +53,24 @@ const Controls = ({
   onToggleWatchParty,
   onToggleParticipants,
   isParticipantsPanelOpen,
+  layoutMode = "gallery",
+  onChangeLayout,
+  anyoneScreenSharing,
 }) => {
+  const [layoutOpen, setLayoutOpen] = useState(false);
+  const layoutRef = useRef(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (layoutRef.current && !layoutRef.current.contains(e.target)) {
+        setLayoutOpen(false);
+      }
+    };
+    if (layoutOpen) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [layoutOpen]);
+
   return (
     <div className="controls-bar">
       {/* Member count badge — also toggles participants panel */}
@@ -94,6 +135,50 @@ const Controls = ({
           </span>
           <span className="ctrl-label">Flip</span>
         </button>
+
+        {/* Layout switcher */}
+        <div className="layout-switcher-wrapper" ref={layoutRef}>
+          <button
+            onClick={() => setLayoutOpen((v) => !v)}
+            className={`control-btn ${layoutOpen ? "screen-active" : ""}`}
+            title="Change layout"
+          >
+            <span className="ctrl-icon">
+              {LAYOUT_OPTIONS.find((o) => o.key === layoutMode)?.icon || (
+                <MdGridView />
+              )}
+            </span>
+            <span className="ctrl-label">Layout</span>
+          </button>
+          {layoutOpen && (
+            <div className="layout-dropdown">
+              {LAYOUT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.key}
+                  className={`layout-option ${layoutMode === opt.key ? "active" : ""} ${opt.key === "screenOnly" && !anyoneScreenSharing ? "disabled" : ""}`}
+                  onClick={() => {
+                    if (opt.key === "screenOnly" && !anyoneScreenSharing)
+                      return;
+                    onChangeLayout(opt.key);
+                    setLayoutOpen(false);
+                  }}
+                  title={
+                    opt.key === "screenOnly" && !anyoneScreenSharing
+                      ? "No screen share active"
+                      : opt.desc
+                  }
+                >
+                  <span className="layout-option-icon">{opt.icon}</span>
+                  <div className="layout-option-text">
+                    <span className="layout-option-label">{opt.label}</span>
+                    <span className="layout-option-desc">{opt.desc}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button
           onClick={onToggleChat}
           className="control-btn"

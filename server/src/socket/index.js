@@ -337,14 +337,12 @@ const initSocket = (server) => {
 
     // ── Media toggles ────────────────────────────────────────────
     socket.on("toggle-media", ({ roomId, userId, type, enabled }) => {
-      socket
-        .to(roomId)
-        .emit("user-toggle-media", {
-          userId,
-          socketId: socket.id,
-          type,
-          enabled,
-        });
+      socket.to(roomId).emit("user-toggle-media", {
+        userId,
+        socketId: socket.id,
+        type,
+        enabled,
+      });
     });
 
     // ── Screen sharing ───────────────────────────────────────────
@@ -358,12 +356,16 @@ const initSocket = (server) => {
         userId,
         userName,
         hostSocketId: socket.id,
+        socketId: socket.id,
       });
     });
 
     socket.on("screen-share-stopped", ({ roomId, userId }) => {
       screenShares.delete(roomId);
-      io.to(roomId).emit("screen-share-stopped", { userId });
+      io.to(roomId).emit("screen-share-stopped", {
+        userId,
+        socketId: socket.id,
+      });
     });
 
     // ── Control permission requests ──────────────────────────────
@@ -542,7 +544,10 @@ const handleLeave = async (socket, roomId) => {
     const ss = screenShares.get(roomId);
     if (ss && ss.hostSocketId === socket.id) {
       screenShares.delete(roomId);
-      io.to(roomId).emit("screen-share-stopped", { userId: user.userId });
+      io.to(roomId).emit("screen-share-stopped", {
+        userId: user.userId,
+        socketId: socket.id,
+      });
     }
 
     // If this user was the watch party host, transfer to another user or stop

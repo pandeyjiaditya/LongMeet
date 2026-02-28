@@ -92,7 +92,7 @@ const VideoPlayer = ({
       </div>
 
       {/* Pin/Unpin controls */}
-      {!isLocal && onPin && (
+      {onPin && (
         <>
           {/* Hover overlay — pin button for unpinned tiles */}
           {!isPinned && hovered && (
