@@ -933,6 +933,10 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-direction: column;
+}
+.mobile-leave-btn {
+  display: none;
 }
 .meeting-clock {
   font-size: 0.85rem;
@@ -2815,6 +2819,32 @@ a:hover {
   .meeting-clock {
     font-size: 0.78rem;
   }
+  .mobile-leave-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    border: none;
+    background: var(--danger);
+    color: #fff;
+    font-size: 1.15rem;
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .mobile-leave-btn:hover {
+    background: #dc2626;
+  }
+  .meeting-header-right {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+  }
+  .controls-bar .leave-btn {
+    display: none !important;
+  }
 
   .meeting-body {
     flex-direction: column;
@@ -3194,6 +3224,72 @@ a:hover {
   }
   .nav-links span {
     display: none;
+  }
+}
+
+/* Orientation-responsive video tiles (like Google Meet) */
+@media (max-width: 600px) and (orientation: portrait) {
+  .video-tile {
+    aspect-ratio: 9 / 16;
+  }
+  .video-tile video {
+    object-fit: cover;
+  }
+  .video-grid.count-1 .video-tile {
+    aspect-ratio: 9 / 16;
+  }
+  .video-grid.count-2 .video-tile {
+    aspect-ratio: 9 / 16;
+  }
+  .video-grid {
+    grid-template-columns: 1fr;
+    align-content: center;
+  }
+  .video-grid.count-2 {
+    grid-template-columns: 1fr;
+  }
+  .video-grid.count-3,
+  .video-grid.count-4 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .video-grid.count-3 .video-tile,
+  .video-grid.count-4 .video-tile {
+    aspect-ratio: 9 / 16;
+  }
+  .video-area {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 900px) and (orientation: landscape) {
+  .video-tile {
+    aspect-ratio: 16 / 9;
+  }
+  .video-tile video {
+    object-fit: cover;
+  }
+  .video-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+  .video-grid.count-1 {
+    grid-template-columns: 1fr;
+  }
+  .video-grid.count-2 {
+    grid-template-columns: 1fr 1fr;
+  }
+  .video-area {
+    flex-direction: row;
+  }
+  .meeting-header {
+    height: 36px;
+    min-height: 36px;
+  }
+  .controls-bar {
+    padding: 4px 6px;
+  }
+  .control-btn {
+    width: 36px;
+    height: 36px;
   }
 }
 

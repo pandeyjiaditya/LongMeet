@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
-import { MdContentCopy, MdCheck } from "react-icons/md";
+import { MdContentCopy, MdCheck, MdCallEnd } from "react-icons/md";
 import api from "../services/api";
 import VideoPlayer from "../components/meeting/VideoPlayer";
 import Controls from "../components/meeting/Controls";
@@ -1063,6 +1063,13 @@ const Meeting = () => {
           </div>
         </div>
         <div className="meeting-header-right">
+          <button
+            className="mobile-leave-btn"
+            onClick={leaveMeeting}
+            title="Leave meeting"
+          >
+            <MdCallEnd />
+          </button>
           <span className="meeting-clock" id="meeting-clock" />
         </div>
       </div>
