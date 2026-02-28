@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 40" fill="none">
+  <defs>
+    <linearGradient id="g" x1="0" y1="0" x2="64" y2="40" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#f472b6"/>
+      <stop offset="50%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+  <!-- Left loop -->
+  <path d="M32 20C32 14,26 8,18 8C10 8,4 14,4 20C4 26,10 32,18 32C26 32,32 26,32 20Z" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Right loop -->
+  <path d="M32 20C32 26,38 32,46 32C54 32,60 26,60 20C60 14,54 8,46 8C38 8,32 14,32 20Z" stroke="url(#g)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Heart -->
+  <path d="M32 16C30.5 13,27 12.5,27 15C27 17,32 21,32 21C32 21,37 17,37 15C37 12.5,33.5 13,32 16Z" fill="url(#g)"/>
+  <!-- Person left -->
+  <circle cx="16" cy="18" r="2.2" fill="#f9a8d4" opacity=".7"/>
+  <path d="M13.5 23.5a2.5 2.5 0 015 0" stroke="#f9a8d4" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".7"/>
+  <!-- Person right -->
+  <circle cx="48" cy="18" r="2.2" fill="#c084fc" opacity=".7"/>
+  <path d="M45.5 23.5a2.5 2.5 0 015 0" stroke="#c084fc" stroke-width="1.5" stroke-linecap="round" fill="none" opacity=".7"/>
+</svg>
