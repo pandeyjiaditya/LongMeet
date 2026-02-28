@@ -39,15 +39,19 @@ const findUserRoom = (socketId) => {
 
 // ─── Socket.IO initialisation ────────────────────────────────────────
 const initSocket = (server) => {
-  const CLIENT_ORIGIN = (
-    process.env.CLIENT_URL || "http://localhost:3000"
-  ).replace(/\/+$/, "");
+  const rawClientUrl = process.env.CLIENT_URL || "http://localhost:3000";
+  // Build an array of allowed origins (http + https, with & without trailing slash)
+  const base = rawClientUrl.replace(/\/+$/, "");
+  const origins = [base];
+  if (base.startsWith("https://")) origins.push(base.replace("https://", "http://"));
+  if (base.startsWith("http://"))  origins.push(base.replace("http://", "https://"));
+
+  console.log("🌐 Socket.IO allowed origins:", origins);
 
   io = new Server(server, {
     cors: {
-      origin: CLIENT_ORIGIN,
+      origin: origins,
       methods: ["GET", "POST"],
-      credentials: true,
     },
     transports: ["websocket", "polling"],
     allowEIO3: true,

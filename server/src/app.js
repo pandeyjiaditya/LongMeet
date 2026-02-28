@@ -10,15 +10,18 @@ const chatRoutes = require("./routes/chat.routes");
 
 const app = express();
 
-// Strip trailing slash from CLIENT_URL to prevent CORS mismatch
-const CLIENT_ORIGIN = (
-  process.env.CLIENT_URL || "http://localhost:3000"
-).replace(/\/+$/, "");
+// Build allowed origins (handle http/https and trailing slash mismatches)
+const rawClientUrl = (process.env.CLIENT_URL || "http://localhost:3000").replace(/\/+$/, "");
+const allowedOrigins = [rawClientUrl];
+if (rawClientUrl.startsWith("https://")) allowedOrigins.push(rawClientUrl.replace("https://", "http://"));
+if (rawClientUrl.startsWith("http://"))  allowedOrigins.push(rawClientUrl.replace("http://", "https://"));
+
+console.log("🌐 Express CORS allowed origins:", allowedOrigins);
 
 // Middleware
 app.use(
   cors({
-    origin: CLIENT_ORIGIN,
+    origin: allowedOrigins,
     credentials: true,
   }),
 );

@@ -200,12 +200,22 @@ const Meeting = () => {
   useEffect(() => {
     if (!socket || !streamReady) return;
 
-    // Tell the server we're joining
-    socket.emit("join-room", {
-      roomId: meetingId,
-      userId: user?._id,
-      userName: user?.name,
-    });
+    // Wait until socket is actually connected before joining
+    const joinRoom = () => {
+      console.log(`🚪 Emitting join-room for ${meetingId}, socket connected: ${socket.connected}`);
+      socket.emit("join-room", {
+        roomId: meetingId,
+        userId: user?._id,
+        userName: user?.name,
+      });
+    };
+
+    if (socket.connected) {
+      joinRoom();
+    } else {
+      console.log("⏳ Socket not connected yet, waiting...");
+      socket.once("connect", joinRoom);
+    }
 
     // ── Receive list of existing users → create offers to each ──
     socket.on("all-users", async (users) => {
@@ -309,6 +319,7 @@ const Meeting = () => {
 
     return () => {
       socket.emit("leave-room", { roomId: meetingId, userId: user?._id });
+      socket.off("connect");
       socket.off("all-users");
       socket.off("user-joined");
       socket.off("user-left");
