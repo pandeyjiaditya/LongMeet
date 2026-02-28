@@ -1,4 +1,17 @@
 import React from "react";
+import {
+  MdMic,
+  MdMicOff,
+  MdVideocam,
+  MdVideocamOff,
+  MdScreenShare,
+  MdStopScreenShare,
+  MdChatBubble,
+  MdMovie,
+  MdCallEnd,
+  MdCameraswitch,
+  MdPeople,
+} from "react-icons/md";
 
 const Controls = ({
   audioEnabled,
@@ -17,7 +30,9 @@ const Controls = ({
     <div className="controls-bar">
       {/* Member count badge */}
       <div className="member-count" title="Participants in this meeting">
-        <span className="member-icon">👥</span>
+        <span className="member-icon">
+          <MdPeople />
+        </span>
         <span className="member-number">{memberCount || 1}</span>
       </div>
 
@@ -27,7 +42,9 @@ const Controls = ({
           className={`control-btn ${!audioEnabled ? "off" : ""}`}
           title={audioEnabled ? "Mute microphone" : "Unmute microphone"}
         >
-          <span className="ctrl-icon">{audioEnabled ? "🎤" : "🔇"}</span>
+          <span className="ctrl-icon">
+            {audioEnabled ? <MdMic /> : <MdMicOff />}
+          </span>
           <span className="ctrl-label">{audioEnabled ? "Mute" : "Unmute"}</span>
         </button>
         <button
@@ -35,7 +52,9 @@ const Controls = ({
           className={`control-btn ${!videoEnabled ? "off" : ""}`}
           title={videoEnabled ? "Turn off camera" : "Turn on camera"}
         >
-          <span className="ctrl-icon">{videoEnabled ? "📹" : "📷"}</span>
+          <span className="ctrl-icon">
+            {videoEnabled ? <MdVideocam /> : <MdVideocamOff />}
+          </span>
           <span className="ctrl-label">
             {videoEnabled ? "Cam Off" : "Cam On"}
           </span>
@@ -45,7 +64,9 @@ const Controls = ({
           className={`control-btn ${screenSharing ? "screen-active" : ""}`}
           title={screenSharing ? "Stop sharing screen" : "Share your screen"}
         >
-          <span className="ctrl-icon">{screenSharing ? "🚫" : "🖥️"}</span>
+          <span className="ctrl-icon">
+            {screenSharing ? <MdStopScreenShare /> : <MdScreenShare />}
+          </span>
           <span className="ctrl-label">
             {screenSharing ? "Stop Share" : "Screen"}
           </span>
@@ -56,7 +77,9 @@ const Controls = ({
           title="Switch camera"
           disabled={!videoEnabled || screenSharing}
         >
-          <span className="ctrl-icon">🔄</span>
+          <span className="ctrl-icon">
+            <MdCameraswitch />
+          </span>
           <span className="ctrl-label">Flip</span>
         </button>
         <button
@@ -64,7 +87,9 @@ const Controls = ({
           className="control-btn"
           title="Toggle chat"
         >
-          <span className="ctrl-icon">💬</span>
+          <span className="ctrl-icon">
+            <MdChatBubble />
+          </span>
           <span className="ctrl-label">Chat</span>
         </button>
         <button
@@ -72,7 +97,9 @@ const Controls = ({
           className="control-btn watch-btn"
           title="Watch Party"
         >
-          <span className="ctrl-icon">🎬</span>
+          <span className="ctrl-icon">
+            <MdMovie />
+          </span>
           <span className="ctrl-label">Watch</span>
         </button>
       </div>
@@ -82,7 +109,9 @@ const Controls = ({
         className="control-btn leave-btn"
         title="Leave meeting"
       >
-        <span className="ctrl-icon">📞</span>
+        <span className="ctrl-icon">
+          <MdCallEnd />
+        </span>
         <span className="ctrl-label">Leave</span>
       </button>
     </div>
