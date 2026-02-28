@@ -1,4 +1,10 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import {
+  MdMicOff,
+  MdVideocamOff,
+  MdPushPin,
+  MdOutlinePushPin,
+} from "react-icons/md";
 
 const VideoPlayer = ({
   stream,
@@ -6,23 +12,107 @@ const VideoPlayer = ({
   userName,
   videoRef,
   isScreenShare = false,
+  isLocal = false,
+  avatar = "",
+  videoEnabled = true,
+  audioEnabled = true,
+  isPinned = false,
+  onPin,
+  isHost = false,
 }) => {
   const internalRef = useRef(null);
   const ref = videoRef || internalRef;
+  const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
     if (stream && ref.current) {
       ref.current.srcObject = stream;
     }
-  }, [stream]);
+  }, [stream, ref]);
+
+  // Derive initials from userName
+  const getInitials = (name) => {
+    if (!name) return "?";
+    return name
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2);
+  };
+
+  const showCameraOff = !videoEnabled && !isScreenShare;
 
   return (
-    <div className={`video-player ${isScreenShare ? "screen-share" : ""}`}>
-      <video ref={ref} autoPlay playsInline muted={muted} />
-      <span className="video-label">
-        {isScreenShare && <span className="screen-badge">🖥️</span>}
-        {userName || "Participant"}
-      </span>
+    <div
+      className={`video-tile ${isScreenShare ? "screen-share" : ""} ${isPinned ? "pinned" : ""}`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Video element — always mounted so ref stays stable */}
+      <video
+        ref={ref}
+        autoPlay
+        playsInline
+        muted={muted}
+        className={showCameraOff ? "video-hidden" : ""}
+      />
+
+      {/* Camera-off avatar fallback */}
+      {showCameraOff && (
+        <div className="video-avatar-fallback">
+          {avatar ? (
+            <img src={avatar} alt={userName} className="avatar-img" />
+          ) : (
+            <div className="avatar-initials">{getInitials(userName)}</div>
+          )}
+          <span className="avatar-name">{userName || "Participant"}</span>
+        </div>
+      )}
+
+      {/* Bottom bar — always visible */}
+      <div className="video-bottom-bar">
+        <div className="video-name-row">
+          {!audioEnabled && (
+            <span className="media-indicator muted-icon">
+              <MdMicOff />
+            </span>
+          )}
+          {!videoEnabled && !isScreenShare && (
+            <span className="media-indicator cam-off-icon">
+              <MdVideocamOff />
+            </span>
+          )}
+          <span className="video-name-text">
+            {isScreenShare && "🖥️ "}
+            {userName || "Participant"}
+            {isHost && <span className="host-tag">Host</span>}
+          </span>
+        </div>
+      </div>
+
+      {/* Hover overlay with details & pin button */}
+      {hovered && !isLocal && onPin && (
+        <div className="video-hover-overlay">
+          <button
+            className={`pin-btn ${isPinned ? "active" : ""}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              onPin();
+            }}
+            title={isPinned ? "Unpin" : "Pin this participant"}
+          >
+            {isPinned ? <MdPushPin /> : <MdOutlinePushPin />}
+          </button>
+        </div>
+      )}
+
+      {/* Pinned indicator */}
+      {isPinned && (
+        <div className="pinned-indicator">
+          <MdPushPin />
+        </div>
+      )}
     </div>
   );
 };

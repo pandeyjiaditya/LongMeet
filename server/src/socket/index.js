@@ -11,6 +11,10 @@ const rooms = new Map();
 const watchParties = new Map();
 // screenShare Map: roomId → { hostSocketId, hostName, hostUserId }
 const screenShares = new Map();
+// meetingHosts Map: roomId → { socketId, userId, userName }
+const meetingHosts = new Map();
+// pendingRequests Map: roomId → Map<socketId, { userId, userName }>
+const pendingRequests = new Map();
 
 const getRoomUsers = (roomId) => {
   if (!rooms.has(roomId)) return [];
@@ -66,13 +70,23 @@ const initSocket = (server) => {
   io.on("connection", (socket) => {
     console.log(`🔌 User connected: ${socket.id}`);
 
-    // ── Join room ────────────────────────────────────────────────
-    socket.on("join-room", async ({ roomId, userId, userName }) => {
+    // ── Helper: actually add a user to the room (shared by host join & accepted join) ──
+    const admitUserToRoom = async (
+      roomId,
+      targetSocket,
+      userId,
+      userName,
+      avatar,
+    ) => {
       // Socket.IO room
-      socket.join(roomId);
+      targetSocket.join(roomId);
 
       // In-memory store
-      addUserToRoom(roomId, socket.id, { userId, userName });
+      addUserToRoom(roomId, targetSocket.id, {
+        userId,
+        userName,
+        avatar: avatar || "",
+      });
 
       // Persist participant in MongoDB
       try {
@@ -80,7 +94,11 @@ const initSocket = (server) => {
           { roomId },
           {
             $addToSet: {
-              participants: { userId, name: userName, socketId: socket.id },
+              participants: {
+                userId,
+                name: userName,
+                socketId: targetSocket.id,
+              },
             },
           },
           { upsert: true, new: true },
@@ -90,18 +108,19 @@ const initSocket = (server) => {
       }
 
       // Broadcast to others in the room
-      socket.to(roomId).emit("user-joined", {
+      targetSocket.to(roomId).emit("user-joined", {
         userId,
         userName,
-        socketId: socket.id,
+        avatar: avatar || "",
+        socketId: targetSocket.id,
       });
 
       // Send the list of ALL existing users (excluding self) so the new
       // joiner can create peer connections to each of them.
       const existingUsers = getRoomUsers(roomId).filter(
-        (u) => u.socketId !== socket.id,
+        (u) => u.socketId !== targetSocket.id,
       );
-      socket.emit("all-users", existingUsers);
+      targetSocket.emit("all-users", existingUsers);
 
       // Send the full participant list to everyone for member count
       io.to(roomId).emit("room-users", getRoomUsers(roomId));
@@ -119,6 +138,134 @@ const initSocket = (server) => {
       console.log(
         `👤 ${userName} joined room ${roomId}  (${getRoomUsers(roomId).length} users)`,
       );
+    };
+
+    // ── Join room (host joins directly) ──────────────────────────
+    socket.on(
+      "join-room",
+      async ({ roomId, userId, userName, avatar, isHost }) => {
+        if (isHost) {
+          // Register this user as the meeting host
+          meetingHosts.set(roomId, { socketId: socket.id, userId, userName });
+          console.log(`👑 ${userName} is the host of room ${roomId}`);
+        }
+
+        await admitUserToRoom(roomId, socket, userId, userName, avatar);
+      },
+    );
+
+    // ── Join request (non-host participants) ─────────────────────
+    socket.on("join-request", ({ roomId, userId, userName, avatar }) => {
+      const host = meetingHosts.get(roomId);
+      if (!host) {
+        // No host connected yet — reject
+        socket.emit("join-request-rejected", {
+          message:
+            "The host has not started this meeting yet. Please try again later.",
+        });
+        return;
+      }
+
+      // Store the pending request
+      if (!pendingRequests.has(roomId)) pendingRequests.set(roomId, new Map());
+      pendingRequests
+        .get(roomId)
+        .set(socket.id, { userId, userName, avatar: avatar || "" });
+
+      // Notify the host about the join request
+      io.to(host.socketId).emit("join-request-received", {
+        socketId: socket.id,
+        userId,
+        userName,
+      });
+
+      // Send current pending list to host
+      const pending = Array.from(pendingRequests.get(roomId).entries()).map(
+        ([sid, data]) => ({ socketId: sid, ...data }),
+      );
+      io.to(host.socketId).emit("pending-requests", pending);
+
+      console.log(`📩 ${userName} requested to join room ${roomId}`);
+    });
+
+    // ── Host accepts a join request ──────────────────────────────
+    socket.on("join-request-accepted", async ({ roomId, targetSocketId }) => {
+      const host = meetingHosts.get(roomId);
+      if (!host || host.socketId !== socket.id) return; // only host can accept
+
+      const pending = pendingRequests.get(roomId);
+      if (!pending || !pending.has(targetSocketId)) return;
+
+      const userData = pending.get(targetSocketId);
+      pending.delete(targetSocketId);
+
+      // Notify the accepted user
+      const targetSock = io.sockets.sockets.get(targetSocketId);
+      if (targetSock) {
+        targetSock.emit("join-request-accepted", { roomId });
+        await admitUserToRoom(
+          roomId,
+          targetSock,
+          userData.userId,
+          userData.userName,
+          userData.avatar,
+        );
+      }
+
+      // Send updated pending list to host
+      const remaining = Array.from(pending.entries()).map(([sid, data]) => ({
+        socketId: sid,
+        ...data,
+      }));
+      socket.emit("pending-requests", remaining);
+
+      console.log(`✅ Host accepted ${userData.userName} into room ${roomId}`);
+    });
+
+    // ── Host rejects a join request ──────────────────────────────
+    socket.on("join-request-rejected", ({ roomId, targetSocketId }) => {
+      const host = meetingHosts.get(roomId);
+      if (!host || host.socketId !== socket.id) return; // only host can reject
+
+      const pending = pendingRequests.get(roomId);
+      if (!pending || !pending.has(targetSocketId)) return;
+
+      const userData = pending.get(targetSocketId);
+      pending.delete(targetSocketId);
+
+      // Notify the rejected user
+      io.to(targetSocketId).emit("join-request-rejected", {
+        message: "The host denied your request to join the meeting.",
+      });
+
+      // Send updated pending list to host
+      const remaining = Array.from(pending.entries()).map(([sid, data]) => ({
+        socketId: sid,
+        ...data,
+      }));
+      socket.emit("pending-requests", remaining);
+
+      console.log(`❌ Host rejected ${userData.userName} from room ${roomId}`);
+    });
+
+    // ── Host removes a participant ───────────────────────────────
+    socket.on("remove-participant", ({ roomId, targetSocketId }) => {
+      const host = meetingHosts.get(roomId);
+      if (!host || host.socketId !== socket.id) return; // only host can remove
+
+      const targetSock = io.sockets.sockets.get(targetSocketId);
+      if (targetSock) {
+        // Notify the removed user
+        targetSock.emit("you-were-removed", {
+          message: "You have been removed from the meeting by the host.",
+        });
+        // Perform the leave
+        handleLeave(targetSock, roomId);
+      }
+
+      console.log(
+        `🚫 Host removed participant ${targetSocketId} from room ${roomId}`,
+      );
     });
 
     // ── Leave room (explicit) ────────────────────────────────────
@@ -130,6 +277,22 @@ const initSocket = (server) => {
     socket.on("disconnect", () => {
       const roomId = findUserRoom(socket.id);
       if (roomId) handleLeave(socket, roomId);
+
+      // Also clean up any pending requests from this socket
+      for (const [rid, pending] of pendingRequests) {
+        if (pending.has(socket.id)) {
+          pending.delete(socket.id);
+          // Notify host that the pending request is gone
+          const host = meetingHosts.get(rid);
+          if (host) {
+            const remaining = Array.from(pending.entries()).map(
+              ([sid, data]) => ({ socketId: sid, ...data }),
+            );
+            io.to(host.socketId).emit("pending-requests", remaining);
+          }
+        }
+      }
+
       console.log(`❌ User disconnected: ${socket.id}`);
     });
 
@@ -174,7 +337,14 @@ const initSocket = (server) => {
 
     // ── Media toggles ────────────────────────────────────────────
     socket.on("toggle-media", ({ roomId, userId, type, enabled }) => {
-      socket.to(roomId).emit("user-toggle-media", { userId, type, enabled });
+      socket
+        .to(roomId)
+        .emit("user-toggle-media", {
+          userId,
+          socketId: socket.id,
+          type,
+          enabled,
+        });
     });
 
     // ── Screen sharing ───────────────────────────────────────────
@@ -350,6 +520,24 @@ const handleLeave = async (socket, roomId) => {
   socket.leave(roomId);
 
   if (user) {
+    // If this user was the meeting host, clean up host & pending requests
+    const host = meetingHosts.get(roomId);
+    if (host && host.socketId === socket.id) {
+      meetingHosts.delete(roomId);
+      // Reject all pending requests since host left
+      const pending = pendingRequests.get(roomId);
+      if (pending) {
+        for (const [sid] of pending) {
+          io.to(sid).emit("join-request-rejected", {
+            message: "The host has left the meeting.",
+          });
+        }
+        pendingRequests.delete(roomId);
+      }
+      // Notify remaining participants that host left
+      io.to(roomId).emit("host-left");
+    }
+
     // If this user was the screen share host, clean up
     const ss = screenShares.get(roomId);
     if (ss && ss.hostSocketId === socket.id) {

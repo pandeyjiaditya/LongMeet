@@ -8,6 +8,7 @@ import Controls from "../components/meeting/Controls";
 import ChatPanel from "../components/meeting/ChatPanel";
 import WatchParty from "../components/meeting/WatchParty";
 import SyncVideoPlayer from "../components/meeting/SyncVideoPlayer";
+import ParticipantsPanel from "../components/meeting/ParticipantsPanel";
 
 // STUN + TURN servers for reliable NAT traversal in production.
 // STUN alone fails when both peers are behind symmetric NATs.
@@ -48,7 +49,7 @@ const Meeting = () => {
   const { socket, connectSocket } = useSocket();
   const navigate = useNavigate();
 
-  // Peers: { [socketId]: { userName, stream, peerConnection } }
+  // Peers: { [socketId]: { userName, avatar, stream, peerConnection } }
   const [peers, setPeers] = useState({});
   const [memberCount, setMemberCount] = useState(1);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -60,10 +61,29 @@ const Meeting = () => {
   const [chatMessages, setChatMessages] = useState([]);
   const chatHistoryLoadedRef = useRef(false);
 
+  // Remote media state: { [socketId]: { audioEnabled: bool, videoEnabled: bool } }
+  const [remoteMediaState, setRemoteMediaState] = useState({});
+  // Pinned participant socketId (null = no pin, use grid layout)
+  const [pinnedPeer, setPinnedPeer] = useState(null);
+  // Participants panel visibility
+  const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
+  // Room users from server (with avatar, userId, userName, socketId)
+  const [roomUsers, setRoomUsers] = useState([]);
+
   // Permission / control state
   const [watchPartyHost, setWatchPartyHost] = useState(null); // { socketId, userName }
   const [controlRequest, setControlRequest] = useState(null); // incoming request: { type, fromSocketId, fromUserName }
   const [controlNotice, setControlNotice] = useState(""); // transient notification
+
+  // Host / admission control state
+  const [isHost, setIsHost] = useState(false);
+  const [hostCheckDone, setHostCheckDone] = useState(false); // true once we know if user is host
+  const [admitted, setAdmitted] = useState(false); // true once user is in the meeting
+  const [waitingForApproval, setWaitingForApproval] = useState(false);
+  const [requestDenied, setRequestDenied] = useState(false);
+  const [requestDeniedMsg, setRequestDeniedMsg] = useState("");
+  const [pendingRequests, setPendingRequests] = useState([]); // host sees these
+  const [hostUserId, setHostUserId] = useState(null); // meeting host's userId
 
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -74,7 +94,7 @@ const Meeting = () => {
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
-    (remoteSocketId, remoteUserName, isInitiator) => {
+    (remoteSocketId, remoteUserName, isInitiator, remoteAvatar = "") => {
       if (peersRef.current[remoteSocketId]) {
         // Already exists, skip
         return peersRef.current[remoteSocketId];
@@ -98,6 +118,7 @@ const Meeting = () => {
           [remoteSocketId]: {
             ...prev[remoteSocketId],
             userName: remoteUserName,
+            avatar: prev[remoteSocketId]?.avatar || remoteAvatar,
             stream: remoteStream,
           },
         }));
@@ -131,8 +152,17 @@ const Meeting = () => {
         ...prev,
         [remoteSocketId]: {
           userName: remoteUserName,
+          avatar: remoteAvatar,
           stream: null,
           ...prev[remoteSocketId],
+        },
+      }));
+      // Initialize remote media state (assume enabled until told otherwise)
+      setRemoteMediaState((prev) => ({
+        ...prev,
+        [remoteSocketId]: prev[remoteSocketId] || {
+          audioEnabled: true,
+          videoEnabled: true,
         },
       }));
 
@@ -153,11 +183,41 @@ const Meeting = () => {
       delete updated[socketId];
       return updated;
     });
+    setRemoteMediaState((prev) => {
+      const updated = { ...prev };
+      delete updated[socketId];
+      return updated;
+    });
+    // Unpin if the pinned peer left
+    setPinnedPeer((prev) => (prev === socketId ? null : prev));
   }, []);
 
-  // ─── Get local media stream ───────────────────────────────────
+  // ─── Get local media stream & check host status ────────────────
   useEffect(() => {
     connectSocket();
+
+    // Fetch meeting info to determine if the current user is the host
+    const checkHostStatus = async () => {
+      try {
+        const res = await api.get(`/meetings/${meetingId}`);
+        const meeting = res.data?.meeting;
+        if (meeting) {
+          const hostId = meeting.host?._id || meeting.host;
+          setHostUserId(hostId);
+          if (hostId === user?._id) {
+            setIsHost(true);
+          }
+        }
+      } catch (err) {
+        // Meeting may not exist in DB yet (fresh room) — creator is host
+        console.log("Meeting not found in DB, treating as host:", err.message);
+        setIsHost(true);
+      } finally {
+        setHostCheckDone(true);
+      }
+    };
+
+    checkHostStatus();
 
     const initStream = async () => {
       try {
@@ -179,10 +239,13 @@ const Meeting = () => {
           localStreamRef.current = audioStream;
           if (localVideoRef.current)
             localVideoRef.current.srcObject = audioStream;
+          setVideoEnabled(false); // camera not available
           setStreamReady(true);
         } catch (err2) {
           console.error("Failed to get any media:", err2);
           // Still allow joining without media
+          setVideoEnabled(false);
+          setAudioEnabled(false);
           setStreamReady(true);
         }
       }
@@ -207,32 +270,88 @@ const Meeting = () => {
 
   // ─── Socket event handlers for WebRTC signaling ───────────────
   useEffect(() => {
-    if (!socket || !streamReady) return;
+    if (!socket || !streamReady || !hostCheckDone) return;
 
     // Wait until socket is actually connected before joining
-    const joinRoom = () => {
+    const joinOrRequest = () => {
       console.log(
-        `🚪 Emitting join-room for ${meetingId}, socket connected: ${socket.connected}`,
+        `🚪 Emitting join for ${meetingId}, socket connected: ${socket.connected}, isHost: ${isHost}`,
       );
-      socket.emit("join-room", {
-        roomId: meetingId,
-        userId: user?._id,
-        userName: user?.name,
-      });
+      if (isHost) {
+        // Host joins directly
+        socket.emit("join-room", {
+          roomId: meetingId,
+          userId: user?._id,
+          userName: user?.name,
+          avatar: user?.avatar || "",
+          isHost: true,
+        });
+        setAdmitted(true);
+      } else {
+        // Non-host: send a join request and wait for approval
+        socket.emit("join-request", {
+          roomId: meetingId,
+          userId: user?._id,
+          userName: user?.name,
+          avatar: user?.avatar || "",
+        });
+        setWaitingForApproval(true);
+      }
     };
 
     if (socket.connected) {
-      joinRoom();
+      joinOrRequest();
     } else {
       console.log("⏳ Socket not connected yet, waiting...");
-      socket.once("connect", joinRoom);
+      socket.once("connect", joinOrRequest);
     }
+
+    // ── Host: incoming join requests ────────────────────────────
+    socket.on("join-request-received", ({ socketId, userId, userName }) => {
+      setPendingRequests((prev) => {
+        if (prev.find((r) => r.socketId === socketId)) return prev;
+        return [...prev, { socketId, userId, userName }];
+      });
+    });
+
+    socket.on("pending-requests", (list) => {
+      setPendingRequests(list);
+    });
+
+    // ── Non-host: join request accepted ─────────────────────────
+    socket.on("join-request-accepted", () => {
+      setWaitingForApproval(false);
+      setAdmitted(true);
+    });
+
+    // ── Non-host: join request rejected ─────────────────────────
+    socket.on("join-request-rejected", ({ message }) => {
+      setWaitingForApproval(false);
+      setRequestDenied(true);
+      setRequestDeniedMsg(message || "Your request to join was denied.");
+    });
+
+    // ── Participant removed by host ─────────────────────────────
+    socket.on("you-were-removed", ({ message }) => {
+      alert(message || "You have been removed from the meeting.");
+      navigate("/dashboard");
+    });
+
+    // ── Host left the meeting ───────────────────────────────────
+    socket.on("host-left", () => {
+      setControlNotice("The host has left the meeting.");
+    });
 
     // ── Receive list of existing users → create offers to each ──
     socket.on("all-users", async (users) => {
       console.log("Existing users in room:", users);
       for (const u of users) {
-        const pc = createPeerConnection(u.socketId, u.userName, true);
+        const pc = createPeerConnection(
+          u.socketId,
+          u.userName,
+          true,
+          u.avatar || "",
+        );
         try {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
@@ -247,7 +366,16 @@ const Meeting = () => {
     // ── A new user joined after us → they will send us an offer ─
     socket.on("user-joined", (data) => {
       console.log("User joined:", data.userName);
-      // Don't create PC yet — wait for their offer
+      // Pre-store avatar + name so it's available when the offer arrives
+      setPeers((prev) => ({
+        ...prev,
+        [data.socketId]: {
+          ...prev[data.socketId],
+          userName: data.userName,
+          avatar: data.avatar || "",
+          stream: prev[data.socketId]?.stream || null,
+        },
+      }));
     });
 
     // ── Receive an offer → create answer ────────────────────────
@@ -256,8 +384,10 @@ const Meeting = () => {
       // Find who this is from the room users
       const roomUsers = getRoomUsersFromPeers();
       const userName = roomUsers[from] || "Participant";
+      // Retrieve pre-stored avatar from peers state
+      const peerAvatar = getPeerAvatar(from);
 
-      const pc = createPeerConnection(from, userName, false);
+      const pc = createPeerConnection(from, userName, false, peerAvatar);
       try {
         await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
@@ -303,12 +433,26 @@ const Meeting = () => {
     // ── Room member count ───────────────────────────────────────
     socket.on("room-users", (users) => {
       setMemberCount(users.length);
+      setRoomUsers(users);
     });
 
     // ── Media toggle from other users ───────────────────────────
-    socket.on("user-toggle-media", ({ userId, type, enabled }) => {
-      console.log(`User ${userId} toggled ${type}: ${enabled}`);
-    });
+    socket.on(
+      "user-toggle-media",
+      ({ userId, socketId: sid, type, enabled }) => {
+        console.log(`User ${userId} (${sid}) toggled ${type}: ${enabled}`);
+        if (sid) {
+          setRemoteMediaState((prev) => {
+            const updated = { ...prev };
+            if (!updated[sid])
+              updated[sid] = { audioEnabled: true, videoEnabled: true };
+            if (type === "audio") updated[sid].audioEnabled = enabled;
+            if (type === "video") updated[sid].videoEnabled = enabled;
+            return updated;
+          });
+        }
+      },
+    );
 
     // ── Screen sharing events ───────────────────────────────────
     socket.on("screen-share-started", ({ userId, userName, hostSocketId }) => {
@@ -369,7 +513,9 @@ const Meeting = () => {
     });
 
     return () => {
-      socket.emit("leave-room", { roomId: meetingId, userId: user?._id });
+      if (admitted) {
+        socket.emit("leave-room", { roomId: meetingId, userId: user?._id });
+      }
       socket.off("connect");
       socket.off("all-users");
       socket.off("user-joined");
@@ -387,8 +533,23 @@ const Meeting = () => {
       socket.off("chat-message");
       socket.off("watch-party:url-changed");
       socket.off("watch-party:stopped");
+      socket.off("join-request-received");
+      socket.off("pending-requests");
+      socket.off("join-request-accepted");
+      socket.off("join-request-rejected");
+      socket.off("you-were-removed");
+      socket.off("host-left");
     };
-  }, [socket, meetingId, streamReady, createPeerConnection, cleanupPeer]);
+  }, [
+    socket,
+    meetingId,
+    streamReady,
+    hostCheckDone,
+    isHost,
+    admitted,
+    createPeerConnection,
+    cleanupPeer,
+  ]);
 
   // Helper: get userName by socketId from current peers
   const getRoomUsersFromPeers = () => {
@@ -397,6 +558,13 @@ const Meeting = () => {
       // Use state peers for name lookup
     });
     return map;
+  };
+
+  // Helper: get avatar for a given socketId from current peers state
+  const getPeerAvatar = (socketId) => {
+    // Try from peers state first, as it's set from user-joined
+    const peerState = peers[socketId];
+    return peerState?.avatar || "";
   };
 
   const toggleAudio = useCallback(async () => {
@@ -624,6 +792,73 @@ const Meeting = () => {
     return () => clearTimeout(t);
   }, [controlNotice]);
 
+  // ─── Host: accept / reject / remove helpers ───────────────────
+  const handleAcceptRequest = (targetSocketId) => {
+    socket?.emit("join-request-accepted", {
+      roomId: meetingId,
+      targetSocketId,
+    });
+  };
+
+  const handleRejectRequest = (targetSocketId) => {
+    socket?.emit("join-request-rejected", {
+      roomId: meetingId,
+      targetSocketId,
+    });
+  };
+
+  const handleRemoveParticipant = (targetSocketId) => {
+    socket?.emit("remove-participant", { roomId: meetingId, targetSocketId });
+  };
+
+  // ─── Waiting for approval screen (non-host) ──────────────────
+  if (waitingForApproval) {
+    return (
+      <div className="lobby-container">
+        <div className="lobby-card">
+          <div className="lobby-spinner"></div>
+          <h2>Waiting for the host to let you in</h2>
+          <p>You'll join the meeting once the host accepts your request.</p>
+          <p className="lobby-room-id">Room: {meetingId}</p>
+          <button
+            className="btn btn-outline"
+            onClick={() => navigate("/dashboard")}
+          >
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Request denied screen ────────────────────────────────────
+  if (requestDenied) {
+    return (
+      <div className="lobby-container">
+        <div className="lobby-card">
+          <div className="lobby-icon denied">✕</div>
+          <h2>Request Denied</h2>
+          <p>{requestDeniedMsg}</p>
+          <button
+            className="btn btn-primary"
+            onClick={() => navigate("/dashboard")}
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Build peer entries list for rendering
+  const peerEntries = Object.entries(peers);
+  const pinnedEntry = pinnedPeer
+    ? peerEntries.find(([sid]) => sid === pinnedPeer)
+    : null;
+  const unpinnedEntries = pinnedPeer
+    ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
+    : peerEntries;
+
   return (
     <div className="meeting-container">
       {/* Meeting header with room info */}
@@ -640,27 +875,91 @@ const Meeting = () => {
         </div>
       </div>
 
-      <div className="video-grid">
-        <VideoPlayer
-          stream={localStreamRef.current}
-          muted
-          userName={screenSharing ? "You (Screen)" : "You"}
-          videoRef={localVideoRef}
-          isScreenShare={screenSharing}
-        />
-        {Object.entries(peers).map(([socketId, peer]) => (
+      <div className={`video-area ${pinnedPeer ? "has-pinned" : ""}`}>
+        {/* Pinned (spotlight) view */}
+        {pinnedEntry && (
+          <div className="pinned-video-section">
+            <VideoPlayer
+              stream={pinnedEntry[1].stream}
+              userName={pinnedEntry[1].userName}
+              avatar={pinnedEntry[1].avatar}
+              videoEnabled={
+                remoteMediaState[pinnedEntry[0]]?.videoEnabled ?? true
+              }
+              audioEnabled={
+                remoteMediaState[pinnedEntry[0]]?.audioEnabled ?? true
+              }
+              isPinned={true}
+              onPin={() => setPinnedPeer(null)}
+              isHost={
+                roomUsers.find((u) => u.socketId === pinnedEntry[0])?.userId ===
+                hostUserId
+              }
+            />
+            {isHost && (
+              <button
+                className="remove-participant-btn"
+                title={`Remove ${pinnedEntry[1].userName}`}
+                onClick={() => handleRemoveParticipant(pinnedEntry[0])}
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Grid of unpinned + local */}
+        <div className={`video-grid ${pinnedPeer ? "sidebar-grid" : ""}`}>
           <VideoPlayer
-            key={socketId}
-            stream={peer.stream}
-            userName={peer.userName}
+            stream={localStreamRef.current}
+            muted
+            userName={
+              screenSharing ? "You (Screen)" : isHost ? "You (Host)" : "You"
+            }
+            videoRef={localVideoRef}
+            isScreenShare={screenSharing}
+            isLocal={true}
+            avatar={user?.avatar || ""}
+            videoEnabled={videoEnabled}
+            audioEnabled={audioEnabled}
+            isHost={isHost}
           />
-        ))}
+          {unpinnedEntries.map(([socketId, peer]) => (
+            <div key={socketId} className="video-wrapper-outer">
+              <VideoPlayer
+                stream={peer.stream}
+                userName={peer.userName}
+                avatar={peer.avatar}
+                videoEnabled={remoteMediaState[socketId]?.videoEnabled ?? true}
+                audioEnabled={remoteMediaState[socketId]?.audioEnabled ?? true}
+                isPinned={false}
+                onPin={() => setPinnedPeer(socketId)}
+                isHost={
+                  roomUsers.find((u) => u.socketId === socketId)?.userId ===
+                  hostUserId
+                }
+              />
+              {isHost && (
+                <button
+                  className="remove-participant-btn"
+                  title={`Remove ${peer.userName}`}
+                  onClick={() => handleRemoveParticipant(socketId)}
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
+
       <Controls
         audioEnabled={audioEnabled}
         videoEnabled={videoEnabled}
         screenSharing={screenSharing}
         memberCount={memberCount}
+        isHost={isHost}
+        pendingCount={pendingRequests.length}
         onToggleAudio={toggleAudio}
         onToggleVideo={toggleVideo}
         onToggleScreenShare={toggleScreenShare}
@@ -668,6 +967,10 @@ const Meeting = () => {
         onLeave={leaveMeeting}
         onToggleChat={() => setIsChatOpen(!isChatOpen)}
         onToggleWatchParty={() => setIsWatchPartyOpen(!isWatchPartyOpen)}
+        onToggleParticipants={() =>
+          setIsParticipantsPanelOpen(!isParticipantsPanelOpen)
+        }
+        isParticipantsPanelOpen={isParticipantsPanelOpen}
       />
       {isChatOpen && (
         <ChatPanel
@@ -676,6 +979,21 @@ const Meeting = () => {
           user={user}
           messages={chatMessages}
           onClose={() => setIsChatOpen(false)}
+        />
+      )}
+      {isParticipantsPanelOpen && (
+        <ParticipantsPanel
+          roomUsers={roomUsers}
+          peers={peers}
+          remoteMediaState={remoteMediaState}
+          localUser={user}
+          localAudioEnabled={audioEnabled}
+          localVideoEnabled={videoEnabled}
+          isHost={isHost}
+          hostUserId={hostUserId}
+          socketId={socket?.id}
+          onRemoveParticipant={handleRemoveParticipant}
+          onClose={() => setIsParticipantsPanelOpen(false)}
         />
       )}
       <WatchParty
@@ -750,6 +1068,34 @@ const Meeting = () => {
       {controlNotice && (
         <div className="control-notice" onClick={() => setControlNotice("")}>
           {controlNotice}
+        </div>
+      )}
+
+      {/* Host: Pending join requests panel */}
+      {isHost && pendingRequests.length > 0 && (
+        <div className="pending-requests-panel">
+          <h3>Join Requests ({pendingRequests.length})</h3>
+          <ul className="pending-requests-list">
+            {pendingRequests.map((req) => (
+              <li key={req.socketId} className="pending-request-item">
+                <span className="pending-request-name">{req.userName}</span>
+                <div className="pending-request-actions">
+                  <button
+                    className="btn btn-primary btn-sm"
+                    onClick={() => handleAcceptRequest(req.socketId)}
+                  >
+                    Accept
+                  </button>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    onClick={() => handleRejectRequest(req.socketId)}
+                  >
+                    Reject
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

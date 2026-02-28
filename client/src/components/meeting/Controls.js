@@ -18,6 +18,8 @@ const Controls = ({
   videoEnabled,
   screenSharing,
   memberCount,
+  isHost,
+  pendingCount,
   onToggleAudio,
   onToggleVideo,
   onToggleScreenShare,
@@ -25,14 +27,24 @@ const Controls = ({
   onLeave,
   onToggleChat,
   onToggleWatchParty,
+  onToggleParticipants,
+  isParticipantsPanelOpen,
 }) => {
   return (
     <div className="controls-bar">
-      {/* Member count badge */}
-      <div className="member-count" title="Participants in this meeting">
+      {/* Member count badge — also toggles participants panel */}
+      <div
+        className={`member-count ${isParticipantsPanelOpen ? "active" : ""}`}
+        title="Participants in this meeting"
+        onClick={onToggleParticipants}
+        style={{ cursor: "pointer" }}
+      >
         <span className="member-icon">
           <MdPeople />
         </span>
+        {isHost && pendingCount > 0 && (
+          <span className="pending-badge">{pendingCount}</span>
+        )}
         <span className="member-number">{memberCount || 1}</span>
       </div>
 
