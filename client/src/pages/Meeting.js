@@ -84,6 +84,7 @@ const Meeting = () => {
   const screenStreamRef = useRef(null);
   const localCameraPreviewRef = useRef(null);
   const peersRef = useRef({});
+  const peersInfoRef = useRef({});
   const [streamReady, setStreamReady] = useState(false);
   const facingModeRef = useRef("user");
   const [readyToJoin, setReadyToJoin] = useState(false);
@@ -181,6 +182,7 @@ const Meeting = () => {
       pc.close();
       delete peersRef.current[socketId];
     }
+    delete peersInfoRef.current[socketId];
     setPeers((prev) => {
       const updated = { ...prev };
       delete updated[socketId];
@@ -345,6 +347,10 @@ const Meeting = () => {
 
     socket.on("all-users", async (users) => {
       for (const u of users) {
+        peersInfoRef.current[u.socketId] = {
+          userName: u.userName,
+          avatar: u.avatar || "",
+        };
         const pc = createPeerConnection(
           u.socketId,
           u.userName,
@@ -360,6 +366,10 @@ const Meeting = () => {
     });
 
     socket.on("user-joined", (data) => {
+      peersInfoRef.current[data.socketId] = {
+        userName: data.userName,
+        avatar: data.avatar || "",
+      };
       setPeers((prev) => ({
         ...prev,
         [data.socketId]: {
@@ -410,6 +420,14 @@ const Meeting = () => {
     socket.on("room-users", (users) => {
       setMemberCount(users.length);
       setRoomUsers(users);
+      users.forEach((u) => {
+        if (u.socketId) {
+          peersInfoRef.current[u.socketId] = {
+            userName: u.userName,
+            avatar: u.avatar || "",
+          };
+        }
+      });
     });
 
     socket.on(
@@ -529,13 +547,14 @@ const Meeting = () => {
 
   const getRoomUsersFromPeers = () => {
     const map = {};
-    Object.entries(peersRef.current).forEach(([socketId]) => {});
+    Object.keys(peersInfoRef.current).forEach((socketId) => {
+      map[socketId] = peersInfoRef.current[socketId].userName;
+    });
     return map;
   };
 
   const getPeerAvatar = (socketId) => {
-    const peerState = peers[socketId];
-    return peerState?.avatar || "";
+    return peersInfoRef.current[socketId]?.avatar || "";
   };
 
   const toggleAudio = useCallback(async () => {
