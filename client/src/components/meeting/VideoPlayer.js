@@ -56,12 +56,20 @@ const VideoPlayer = ({
 
       {showCameraOff && (
         <div className="video-avatar-fallback">
-          {avatar ? (
-            <img src={avatar} alt={userName} className="avatar-img" />
-          ) : (
-            <div className="avatar-initials">{getInitials(userName)}</div>
-          )}
+          <div className="avatar-circle">
+            {avatar ? (
+              <img src={avatar} alt={userName} className="avatar-img" />
+            ) : (
+              <div className="avatar-initials">{getInitials(userName)}</div>
+            )}
+          </div>
           <span className="avatar-name">{userName || "Participant"}</span>
+          {isHost && <span className="avatar-host-tag">Host</span>}
+          {!audioEnabled && (
+            <span className="avatar-muted-badge">
+              <MdMicOff /> Muted
+            </span>
+          )}
         </div>
       )}
 
