@@ -2,6 +2,8 @@
   "name": "longmeet",
   "version": "1.0.0",
   "description": "LongMeet - Real-time Video Meeting App (MERN + Socket.IO)",
+  "author": "Aditya Pandey",
+  "license": "All Rights Reserved",
   "scripts": {
     "client": "cd client && npm start",
     "server": "cd server && npm run dev",

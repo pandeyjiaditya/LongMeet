@@ -101,6 +101,20 @@ const Login = () => {
         <p>
           Don't have an account? <Link to="/register">Create one</Link>
         </p>
+        <footer
+          className="copyright-footer"
+          style={{
+            marginTop: "24px",
+            border: "none",
+            background: "transparent",
+            padding: "12px 0 0",
+          }}
+        >
+          <p>
+            © {new Date().getFullYear()} <span>LongMeet</span> — Made by{" "}
+            <span>Aditya Pandey</span>. All rights reserved.
+          </p>
+        </footer>
       </div>
     </div>
   );

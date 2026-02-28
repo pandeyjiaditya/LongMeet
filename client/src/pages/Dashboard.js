@@ -98,6 +98,12 @@ const Dashboard = () => {
           </form>
         </div>
       </main>
+      <footer className="copyright-footer">
+        <p>
+          © {new Date().getFullYear()} <span>LongMeet</span> — Made by{" "}
+          <span>Aditya Pandey</span>. All rights reserved.
+        </p>
+      </footer>
     </div>
   );
 };

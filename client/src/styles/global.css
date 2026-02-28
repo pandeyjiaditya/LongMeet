@@ -3900,3 +3900,28 @@ a:hover {
   background: rgba(244, 114, 182, 0.3);
   color: #fff;
 }
+
+/* ── Copyright Footer ── */
+.copyright-footer {
+  text-align: center;
+  padding: 20px 16px;
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  letter-spacing: 0.02em;
+  border-top: 1px solid var(--border-color);
+  background: rgba(6, 6, 15, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  margin-top: auto;
+}
+.copyright-footer span {
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 600;
+}
+.copyright-footer p {
+  margin: 0;
+  line-height: 1.6;
+}

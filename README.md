@@ -108,4 +108,9 @@ Copy the example env files and adjust as needed:
 
 ## License
 
-MIT
+All rights reserved.
+
+---
+
+**Made by Aditya Pandey** — © 2026 LongMeet. All rights reserved.  
+Unauthorized copying, modification, distribution, or use of this software is strictly prohibited without prior written permission.
