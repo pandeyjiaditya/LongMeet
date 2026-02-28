@@ -73,20 +73,35 @@ const VideoPlayer = ({
       {/* Bottom bar — always visible */}
       <div className="video-bottom-bar">
         <div className="video-name-row">
-          {!audioEnabled && (
-            <span className="media-indicator muted-icon">
-              <MdMicOff />
-            </span>
-          )}
-          {!videoEnabled && !isScreenShare && (
-            <span className="media-indicator cam-off-icon">
-              <MdVideocamOff />
+          {/* Small avatar in bottom bar */}
+          {!isScreenShare && (
+            <span className="bottom-bar-avatar">
+              {avatar ? (
+                <img src={avatar} alt={userName} />
+              ) : (
+                <span className="bottom-bar-initials">
+                  {getInitials(userName)}
+                </span>
+              )}
             </span>
           )}
           <span className="video-name-text">
             {isScreenShare && "🖥️ "}
             {userName || "Participant"}
             {isHost && <span className="host-tag">Host</span>}
+          </span>
+          {/* Media status indicators */}
+          <span className="media-indicators">
+            {!audioEnabled && (
+              <span className="media-indicator muted-icon">
+                <MdMicOff />
+              </span>
+            )}
+            {!videoEnabled && !isScreenShare && (
+              <span className="media-indicator cam-off-icon">
+                <MdVideocamOff />
+              </span>
+            )}
           </span>
         </div>
       </div>
