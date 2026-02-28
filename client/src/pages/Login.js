@@ -1,10 +1,54 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
+const GOOGLE_CLIENT_ID =
+  process.env.REACT_APP_GOOGLE_CLIENT_ID ||
+  "1052308984014-ej9fggc7q9gv569enie1rtd0untt4ho1.apps.googleusercontent.com";
+
 const Login = () => {
-  const { login, user, error, clearError } = useAuth();
+  const { login, googleLogin, user, error, clearError } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
+  const googleBtnRef = useRef(null);
+
+  useEffect(() => {
+    // Initialize Google Sign-In button once the GSI script is loaded
+    const initGoogle = () => {
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: GOOGLE_CLIENT_ID,
+          callback: handleGoogleResponse,
+        });
+        window.google.accounts.id.renderButton(googleBtnRef.current, {
+          theme: "outline",
+          size: "large",
+          width: "100%",
+          text: "signin_with",
+          shape: "rectangular",
+        });
+      }
+    };
+
+    // GSI script may not be ready yet — poll briefly
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogle();
+        }
+      }, 200);
+      return () => clearInterval(interval);
+    }
+  }, []);
+
+  const handleGoogleResponse = (response) => {
+    if (response.credential) {
+      clearError();
+      googleLogin(response.credential);
+    }
+  };
 
   if (user) return <Navigate to="/dashboard" />;
 
@@ -38,6 +82,13 @@ const Login = () => {
             Login
           </button>
         </form>
+
+        <div className="auth-divider">
+          <span>or</span>
+        </div>
+
+        <div className="google-btn-wrapper" ref={googleBtnRef}></div>
+
         <p>
           Don't have an account? <Link to="/register">Sign up</Link>
         </p>

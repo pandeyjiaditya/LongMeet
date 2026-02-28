@@ -1,11 +1,12 @@
 import React, { createContext, useContext, useReducer, useEffect } from "react";
 import api from "../services/api";
+import { getToken, setToken, removeToken } from "../utils/tokenStorage";
 
 const AuthContext = createContext();
 
 const initialState = {
   user: null,
-  token: localStorage.getItem("token"),
+  token: getToken(),
   loading: true,
   error: null,
 };
@@ -13,7 +14,7 @@ const initialState = {
 const authReducer = (state, action) => {
   switch (action.type) {
     case "AUTH_SUCCESS":
-      localStorage.setItem("token", action.payload.token);
+      setToken(action.payload.token);
       return {
         ...state,
         user: action.payload.user,
@@ -25,7 +26,7 @@ const authReducer = (state, action) => {
       return { ...state, user: action.payload, loading: false };
     case "AUTH_ERROR":
     case "LOGOUT":
-      localStorage.removeItem("token");
+      removeToken();
       return {
         ...state,
         user: null,
@@ -55,6 +56,16 @@ export const AuthProvider = ({ children }) => {
     try {
       const res = await api.get("/auth/me");
       dispatch({ type: "USER_LOADED", payload: res.data.user });
+
+      // Silently refresh the token so active users never expire
+      try {
+        const refreshRes = await api.post("/auth/refresh-token");
+        if (refreshRes.data?.token) {
+          setToken(refreshRes.data.token);
+        }
+      } catch {
+        // Refresh failed — current token is still valid, ignore
+      }
     } catch {
       dispatch({ type: "AUTH_ERROR" });
     }
@@ -84,12 +95,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const googleLogin = async (credential) => {
+    try {
+      const res = await api.post("/auth/google", { credential });
+      dispatch({ type: "AUTH_SUCCESS", payload: res.data });
+    } catch (err) {
+      dispatch({
+        type: "AUTH_ERROR",
+        payload: err.response?.data?.message || "Google login failed",
+      });
+    }
+  };
+
   const logout = () => dispatch({ type: "LOGOUT" });
   const clearError = () => dispatch({ type: "CLEAR_ERROR" });
 
   return (
     <AuthContext.Provider
-      value={{ ...state, login, register, logout, clearError }}
+      value={{ ...state, login, register, googleLogin, logout, clearError }}
     >
       {children}
     </AuthContext.Provider>

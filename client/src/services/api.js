@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getToken, removeToken } from "../utils/tokenStorage";
 
 const api = axios.create({
   baseURL: process.env.REACT_APP_API_URL || "http://localhost:5000/api",
@@ -7,18 +8,21 @@ const api = axios.create({
 
 // Attach token to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
+  const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 globally — only redirect if not already on login/register
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem("token");
-      window.location.href = "/login";
+      const path = window.location.pathname;
+      if (path !== "/login" && path !== "/register") {
+        removeToken();
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(err);
   },

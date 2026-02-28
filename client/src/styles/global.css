@@ -133,6 +133,34 @@ a:hover {
   margin-bottom: 8px;
 }
 
+/* Auth divider */
+.auth-divider {
+  display: flex;
+  align-items: center;
+  margin: 20px 0 16px;
+  gap: 12px;
+}
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #444;
+}
+.auth-divider span {
+  color: #888;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Google button wrapper */
+.google-btn-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+}
+
 /* ===== Dashboard ===== */
 .dashboard-main {
   padding: 60px 40px;
