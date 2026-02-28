@@ -8,13 +8,37 @@ import ChatPanel from "../components/meeting/ChatPanel";
 import WatchParty from "../components/meeting/WatchParty";
 import SyncVideoPlayer from "../components/meeting/SyncVideoPlayer";
 
-// Free STUN/TURN servers for NAT traversal
+// STUN + TURN servers for reliable NAT traversal in production.
+// STUN alone fails when both peers are behind symmetric NATs.
+// Free TURN relays from OpenRelay (metered.ca) — replace with your
+// own credentials for a production app.
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
+    { urls: "stun:stun.relay.metered.ca:80" },
+    {
+      urls: "turn:a.relay.metered.ca:80",
+      username: "e8dd65b92f6de3da0a26c6e4",
+      credential: "RiesKkytmSsJMPkp",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:80?transport=tcp",
+      username: "e8dd65b92f6de3da0a26c6e4",
+      credential: "RiesKkytmSsJMPkp",
+    },
+    {
+      urls: "turn:a.relay.metered.ca:443",
+      username: "e8dd65b92f6de3da0a26c6e4",
+      credential: "RiesKkytmSsJMPkp",
+    },
+    {
+      urls: "turns:a.relay.metered.ca:443?transport=tcp",
+      username: "e8dd65b92f6de3da0a26c6e4",
+      credential: "RiesKkytmSsJMPkp",
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 const Meeting = () => {

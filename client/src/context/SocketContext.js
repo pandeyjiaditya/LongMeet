@@ -12,6 +12,12 @@ export const SocketProvider = ({ children }) => {
     const newSocket = io(SOCKET_URL, {
       autoConnect: false,
       transports: ["websocket", "polling"],
+      withCredentials: true,
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
     setSocket(newSocket);
 
