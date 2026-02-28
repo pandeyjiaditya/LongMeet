@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   MdClose,
   MdMic,
@@ -17,10 +17,12 @@ const ParticipantsPanel = ({
   localVideoEnabled,
   isHost,
   hostUserId,
-  socketId, // our own socket id
+  socketId,
   onRemoveParticipant,
   onClose,
 }) => {
+  const [search, setSearch] = useState("");
+
   const getInitials = (name) => {
     if (!name) return "?";
     return name
@@ -31,26 +33,40 @@ const ParticipantsPanel = ({
       .slice(0, 2);
   };
 
-  // Determine if a user is the host
   const isUserHost = (userId) => userId === hostUserId;
 
   // Sort: host first, then self, then alphabetical
-  const sortedUsers = [...roomUsers].sort((a, b) => {
-    if (isUserHost(a.userId) && !isUserHost(b.userId)) return -1;
-    if (!isUserHost(a.userId) && isUserHost(b.userId)) return 1;
-    if (a.socketId === socketId) return -1;
-    if (b.socketId === socketId) return 1;
-    return (a.userName || "").localeCompare(b.userName || "");
-  });
+  const sortedUsers = [...roomUsers]
+    .sort((a, b) => {
+      if (isUserHost(a.userId) && !isUserHost(b.userId)) return -1;
+      if (!isUserHost(a.userId) && isUserHost(b.userId)) return 1;
+      if (a.socketId === socketId) return -1;
+      if (b.socketId === socketId) return 1;
+      return (a.userName || "").localeCompare(b.userName || "");
+    })
+    .filter((u) =>
+      search
+        ? (u.userName || "").toLowerCase().includes(search.toLowerCase())
+        : true,
+    );
 
   return (
     <div className="participants-panel">
       <div className="participants-header">
-        <h3>Participants ({roomUsers.length})</h3>
+        <h3>People ({roomUsers.length})</h3>
         <button className="participants-close-btn" onClick={onClose}>
           <MdClose />
         </button>
       </div>
+      <div className="participants-search">
+        <input
+          type="text"
+          placeholder="Search people"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+      <div className="participants-section-label">In this call</div>
       <ul className="participants-list">
         {sortedUsers.map((u) => {
           const isSelf = u.socketId === socketId;

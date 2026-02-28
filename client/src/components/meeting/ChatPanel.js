@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { MdSend, MdClose } from "react-icons/md";
 
 const ChatPanel = ({ meetingId, socket, user, messages = [], onClose }) => {
   const [text, setText] = useState("");
@@ -24,12 +25,20 @@ const ChatPanel = ({ meetingId, socket, user, messages = [], onClose }) => {
   return (
     <div className="chat-panel">
       <div className="chat-header">
-        <h3>Chat</h3>
+        <h3>In-call messages</h3>
         <button className="chat-close-btn" onClick={onClose} title="Close chat">
-          ✕
+          <MdClose />
         </button>
       </div>
       <div className="chat-messages">
+        {messages.length === 0 && (
+          <div className="chat-empty">
+            <span>
+              Messages can only be seen by people in the call and are deleted
+              when the call ends.
+            </span>
+          </div>
+        )}
         {messages.map((msg, i) => (
           <div
             key={i}
@@ -45,9 +54,11 @@ const ChatPanel = ({ meetingId, socket, user, messages = [], onClose }) => {
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder="Type a message..."
+          placeholder="Send a message to everyone"
         />
-        <button type="submit">Send</button>
+        <button type="submit" title="Send">
+          <MdSend />
+        </button>
       </form>
     </div>
   );

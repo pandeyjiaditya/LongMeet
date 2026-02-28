@@ -73,22 +73,24 @@ const Controls = ({
 
   return (
     <div className="controls-bar">
-      {/* Member count badge — also toggles participants panel */}
-      <div
-        className={`member-count ${isParticipantsPanelOpen ? "active" : ""}`}
-        title="Participants in this meeting"
-        onClick={onToggleParticipants}
-        style={{ cursor: "pointer" }}
-      >
-        <span className="member-icon">
-          <MdPeople />
-        </span>
-        {isHost && pendingCount > 0 && (
-          <span className="pending-badge">{pendingCount}</span>
-        )}
-        <span className="member-number">{memberCount || 1}</span>
+      {/* Left: meeting info */}
+      <div className="controls-left">
+        <button
+          className={`member-count ${isParticipantsPanelOpen ? "active" : ""}`}
+          title="Participants"
+          onClick={onToggleParticipants}
+        >
+          <span className="member-icon">
+            <MdPeople />
+          </span>
+          {isHost && pendingCount > 0 && (
+            <span className="pending-badge">{pendingCount}</span>
+          )}
+          <span className="member-number">{memberCount || 1}</span>
+        </button>
       </div>
 
+      {/* Center: main controls */}
       <div className="controls-center">
         <button
           onClick={onToggleAudio}
@@ -98,7 +100,6 @@ const Controls = ({
           <span className="ctrl-icon">
             {audioEnabled ? <MdMic /> : <MdMicOff />}
           </span>
-          <span className="ctrl-label">{audioEnabled ? "Mute" : "Unmute"}</span>
         </button>
         <button
           onClick={onToggleVideo}
@@ -108,20 +109,14 @@ const Controls = ({
           <span className="ctrl-icon">
             {videoEnabled ? <MdVideocam /> : <MdVideocamOff />}
           </span>
-          <span className="ctrl-label">
-            {videoEnabled ? "Cam Off" : "Cam On"}
-          </span>
         </button>
         <button
           onClick={onToggleScreenShare}
           className={`control-btn ${screenSharing ? "screen-active" : ""}`}
-          title={screenSharing ? "Stop sharing screen" : "Share your screen"}
+          title={screenSharing ? "Stop sharing" : "Share screen"}
         >
           <span className="ctrl-icon">
             {screenSharing ? <MdStopScreenShare /> : <MdScreenShare />}
-          </span>
-          <span className="ctrl-label">
-            {screenSharing ? "Stop Share" : "Screen"}
           </span>
         </button>
         <button
@@ -133,14 +128,13 @@ const Controls = ({
           <span className="ctrl-icon">
             <MdCameraswitch />
           </span>
-          <span className="ctrl-label">Flip</span>
         </button>
 
         {/* Layout switcher */}
         <div className="layout-switcher-wrapper" ref={layoutRef}>
           <button
             onClick={() => setLayoutOpen((v) => !v)}
-            className={`control-btn ${layoutOpen ? "screen-active" : ""}`}
+            className={`control-btn ${layoutOpen ? "active-panel" : ""}`}
             title="Change layout"
           >
             <span className="ctrl-icon">
@@ -148,7 +142,6 @@ const Controls = ({
                 <MdGridView />
               )}
             </span>
-            <span className="ctrl-label">Layout</span>
           </button>
           {layoutOpen && (
             <div className="layout-dropdown">
@@ -181,36 +174,37 @@ const Controls = ({
 
         <button
           onClick={onToggleChat}
-          className="control-btn"
-          title="Toggle chat"
+          className={`control-btn ${false ? "active-panel" : ""}`}
+          title="Chat"
         >
           <span className="ctrl-icon">
             <MdChatBubble />
           </span>
-          <span className="ctrl-label">Chat</span>
         </button>
         <button
           onClick={onToggleWatchParty}
-          className="control-btn watch-btn"
+          className="control-btn"
           title="Watch Party"
         >
           <span className="ctrl-icon">
             <MdMovie />
           </span>
-          <span className="ctrl-label">Watch</span>
+        </button>
+
+        {/* Leave button inline like GMeet */}
+        <button
+          onClick={onLeave}
+          className="control-btn leave-btn"
+          title="Leave meeting"
+        >
+          <span className="ctrl-icon">
+            <MdCallEnd />
+          </span>
         </button>
       </div>
 
-      <button
-        onClick={onLeave}
-        className="control-btn leave-btn"
-        title="Leave meeting"
-      >
-        <span className="ctrl-icon">
-          <MdCallEnd />
-        </span>
-        <span className="ctrl-label">Leave</span>
-      </button>
+      {/* Right: empty or future actions */}
+      <div className="controls-right" />
     </div>
   );
 };

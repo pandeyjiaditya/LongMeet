@@ -103,6 +103,22 @@ const Meeting = () => {
   // Layout mode: "gallery" | "spotlight" | "screenOnly"
   const [layoutMode, setLayoutMode] = useState("gallery");
 
+  // ─── Live clock in header ─────────────────────────────────────
+  useEffect(() => {
+    const el = document.getElementById("meeting-clock");
+    if (!el) return;
+    const tick = () => {
+      const now = new Date();
+      el.textContent = now.toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    };
+    tick();
+    const id = setInterval(tick, 10000);
+    return () => clearInterval(id);
+  }, [joined]);
+
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
     (remoteSocketId, remoteUserName, isInitiator, remoteAvatar = "") => {
@@ -1141,32 +1157,28 @@ const Meeting = () => {
 
   return (
     <div className="meeting-container">
-      {/* Meeting header with room info */}
+      {/* Meeting header — GMeet style */}
       <div className="meeting-header">
-        <div className="meeting-id">
-          <span className="meeting-id-label">Room:</span>
-          <span className="meeting-id-value">{meetingId}</span>
-          <button
-            className="copy-id-btn"
-            title="Copy meeting ID"
-            onClick={() => {
-              navigator.clipboard.writeText(meetingId).then(() => {
-                setCopiedId(true);
-                setTimeout(() => setCopiedId(false), 2000);
-              });
-            }}
-          >
-            {copiedId ? <MdCheck /> : <MdContentCopy />}
-            <span className="copy-id-text">
-              {copiedId ? "Copied!" : "Copy"}
-            </span>
-          </button>
+        <div className="meeting-header-left">
+          <span className="meeting-header-title">LongMeet</span>
+          <div className="meeting-id-badge">
+            <code>{meetingId}</code>
+            <button
+              className={`copy-id-btn${copiedId ? " copied" : ""}`}
+              title="Copy meeting ID"
+              onClick={() => {
+                navigator.clipboard.writeText(meetingId).then(() => {
+                  setCopiedId(true);
+                  setTimeout(() => setCopiedId(false), 2000);
+                });
+              }}
+            >
+              {copiedId ? <MdCheck /> : <MdContentCopy />}
+            </button>
+          </div>
         </div>
-        <div className="meeting-members">
-          <span className="member-icon">👥</span>
-          <span>
-            {memberCount} participant{memberCount !== 1 ? "s" : ""}
-          </span>
+        <div className="meeting-header-right">
+          <span className="meeting-clock" id="meeting-clock" />
         </div>
       </div>
 
