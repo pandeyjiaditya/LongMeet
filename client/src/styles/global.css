@@ -933,7 +933,7 @@ a:hover {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-direction: column;
+  flex-direction: row;
 }
 .mobile-leave-btn {
   display: none;
@@ -2838,9 +2838,9 @@ a:hover {
     background: #dc2626;
   }
   .meeting-header-right {
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
   }
   .controls-bar .leave-btn {
     display: none !important;
@@ -2856,37 +2856,59 @@ a:hover {
   }
   .video-grid {
     grid-template-columns: 1fr;
+    grid-auto-rows: 1fr;
     gap: 4px;
     padding: 4px;
+    max-width: none;
+    margin: 0;
+    align-content: stretch;
   }
+  .video-tile {
+    border-radius: 10px;
+    aspect-ratio: auto;
+    height: 100%;
+    min-height: 0;
+  }
+  /* 1 participant — full screen single tile */
   .video-grid.count-1 {
     grid-template-columns: 1fr;
-    max-width: none;
-    margin: 0;
+    grid-template-rows: 1fr;
   }
+  /* 2 participants — stacked vertically, each half */
   .video-grid.count-2 {
-    grid-template-columns: repeat(2, 1fr);
-    max-width: none;
-    margin: 0;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr 1fr;
   }
-  .video-grid.count-3,
+  /* 3 participants — top row 1, bottom row 2 */
+  .video-grid.count-3 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+  }
+  .video-grid.count-3 .video-tile:first-child {
+    grid-column: 1 / -1;
+  }
+  /* 4 participants — 2x2 grid */
   .video-grid.count-4 {
-    grid-template-columns: repeat(2, 1fr);
-    max-width: none;
-    margin: 0;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
   }
+  /* 5-6 participants — 2 columns, 3 rows */
   .video-grid.count-5,
-  .video-grid.count-6,
+  .video-grid.count-6 {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr 1fr;
+  }
+  .video-grid.count-5 .video-tile:last-child {
+    grid-column: 1 / -1;
+  }
+  /* 7-10 participants — 2 columns, auto rows, scrollable */
   .video-grid.count-7,
   .video-grid.count-8,
   .video-grid.count-9,
   .video-grid.count-10 {
-    grid-template-columns: repeat(2, 1fr);
-    max-width: none;
-    margin: 0;
-  }
-  .video-tile {
-    border-radius: 10px;
+    grid-template-columns: 1fr 1fr;
+    grid-auto-rows: minmax(120px, 1fr);
+    overflow-y: auto;
   }
   .video-name-text {
     font-size: 0.7rem;
@@ -3229,39 +3251,61 @@ a:hover {
 
 /* Orientation-responsive video tiles (like Google Meet) */
 @media (max-width: 600px) and (orientation: portrait) {
-  .video-tile {
-    aspect-ratio: 9 / 16;
+  .video-area {
+    flex-direction: column;
   }
   .video-tile video {
     object-fit: cover;
   }
-  .video-grid.count-1 .video-tile {
-    aspect-ratio: 9 / 16;
-  }
-  .video-grid.count-2 .video-tile {
-    aspect-ratio: 9 / 16;
+}
+
+@media (max-width: 600px) and (orientation: landscape) {
+  .video-area {
+    flex-direction: row;
   }
   .video-grid {
+    grid-auto-rows: 1fr;
+  }
+  .video-grid.count-1 {
     grid-template-columns: 1fr;
-    align-content: center;
+    grid-template-rows: 1fr;
   }
   .video-grid.count-2 {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr;
   }
-  .video-grid.count-3,
+  .video-grid.count-3 {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr;
+  }
+  .video-grid.count-3 .video-tile:first-child {
+    grid-column: auto;
+  }
   .video-grid.count-4 {
     grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
   }
-  .video-grid.count-3 .video-tile,
-  .video-grid.count-4 .video-tile {
-    aspect-ratio: 9 / 16;
+  .video-grid.count-5,
+  .video-grid.count-6 {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
   }
-  .video-area {
-    flex-direction: column;
+  .video-grid.count-5 .video-tile:last-child {
+    grid-column: auto;
+  }
+  .video-grid.count-7,
+  .video-grid.count-8,
+  .video-grid.count-9,
+  .video-grid.count-10 {
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    grid-auto-rows: 1fr;
+  }
+  .video-tile video {
+    object-fit: cover;
   }
 }
 
-@media (max-width: 900px) and (orientation: landscape) {
+@media (min-width: 601px) and (max-width: 900px) and (orientation: landscape) {
   .video-tile {
     aspect-ratio: 16 / 9;
   }

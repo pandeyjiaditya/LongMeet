@@ -1063,6 +1063,7 @@ const Meeting = () => {
           </div>
         </div>
         <div className="meeting-header-right">
+          <span className="meeting-clock" id="meeting-clock" />
           <button
             className="mobile-leave-btn"
             onClick={leaveMeeting}
@@ -1070,7 +1071,6 @@ const Meeting = () => {
           >
             <MdCallEnd />
           </button>
-          <span className="meeting-clock" id="meeting-clock" />
         </div>
       </div>
 
