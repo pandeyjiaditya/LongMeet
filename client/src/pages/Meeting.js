@@ -297,6 +297,8 @@ const Meeting = () => {
           userName: user?.name,
           avatar: user?.avatar || "",
           isHost: true,
+          audioEnabled: preJoinAudio,
+          videoEnabled: preJoinVideo,
         });
         setAdmitted(true);
       } else {
@@ -305,6 +307,8 @@ const Meeting = () => {
           userId: user?._id,
           userName: user?.name,
           avatar: user?.avatar || "",
+          audioEnabled: preJoinAudio,
+          videoEnabled: preJoinVideo,
         });
         setWaitingForApproval(true);
       }
@@ -353,6 +357,13 @@ const Meeting = () => {
           userName: u.userName,
           avatar: u.avatar || "",
         };
+        setRemoteMediaState((prev) => ({
+          ...prev,
+          [u.socketId]: {
+            audioEnabled: u.audioEnabled !== false,
+            videoEnabled: u.videoEnabled !== false,
+          },
+        }));
         const pc = createPeerConnection(
           u.socketId,
           u.userName,
@@ -379,6 +390,13 @@ const Meeting = () => {
           userName: data.userName,
           avatar: data.avatar || "",
           stream: prev[data.socketId]?.stream || null,
+        },
+      }));
+      setRemoteMediaState((prev) => ({
+        ...prev,
+        [data.socketId]: {
+          audioEnabled: data.audioEnabled !== false,
+          videoEnabled: data.videoEnabled !== false,
         },
       }));
     });

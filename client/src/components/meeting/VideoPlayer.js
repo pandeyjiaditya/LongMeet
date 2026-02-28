@@ -23,10 +23,34 @@ const VideoPlayer = ({
   const internalRef = useRef(null);
   const ref = videoRef || internalRef;
   const [hovered, setHovered] = useState(false);
+  const [isPortrait, setIsPortrait] = useState(false);
 
   useEffect(() => {
     if (stream && ref.current) ref.current.srcObject = stream;
   }, [stream, ref]);
+
+  useEffect(() => {
+    const videoEl = ref.current;
+    if (!videoEl) return;
+
+    const checkOrientation = () => {
+      const vw = videoEl.videoWidth;
+      const vh = videoEl.videoHeight;
+      if (vw && vh) {
+        setIsPortrait(vh > vw);
+      }
+    };
+
+    videoEl.addEventListener("loadedmetadata", checkOrientation);
+    videoEl.addEventListener("resize", checkOrientation);
+    // Check immediately in case metadata is already loaded
+    checkOrientation();
+
+    return () => {
+      videoEl.removeEventListener("loadedmetadata", checkOrientation);
+      videoEl.removeEventListener("resize", checkOrientation);
+    };
+  }, [ref, stream]);
 
   const getInitials = (name) =>
     name
@@ -42,7 +66,7 @@ const VideoPlayer = ({
 
   return (
     <div
-      className={`video-tile ${isScreenShare ? "screen-share" : ""} ${isPinned ? "pinned" : ""}`}
+      className={`video-tile ${isScreenShare ? "screen-share" : ""} ${isPinned ? "pinned" : ""} ${isPortrait && videoEnabled && !isScreenShare ? "portrait" : ""}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >

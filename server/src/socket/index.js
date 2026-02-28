@@ -64,6 +64,8 @@ const initSocket = (server) => {
       userId,
       userName,
       avatar,
+      audioEnabled = true,
+      videoEnabled = true,
     ) => {
       targetSocket.join(roomId);
 
@@ -71,6 +73,8 @@ const initSocket = (server) => {
         userId,
         userName,
         avatar: avatar || "",
+        audioEnabled,
+        videoEnabled,
       });
 
       try {
@@ -96,6 +100,8 @@ const initSocket = (server) => {
         userName,
         avatar: avatar || "",
         socketId: targetSocket.id,
+        audioEnabled,
+        videoEnabled,
       });
 
       const existingUsers = getRoomUsers(roomId).filter(
@@ -117,41 +123,67 @@ const initSocket = (server) => {
 
     socket.on(
       "join-room",
-      async ({ roomId, userId, userName, avatar, isHost }) => {
+      async ({
+        roomId,
+        userId,
+        userName,
+        avatar,
+        isHost,
+        audioEnabled,
+        videoEnabled,
+      }) => {
         if (isHost) {
           meetingHosts.set(roomId, { socketId: socket.id, userId, userName });
         }
 
-        await admitUserToRoom(roomId, socket, userId, userName, avatar);
+        await admitUserToRoom(
+          roomId,
+          socket,
+          userId,
+          userName,
+          avatar,
+          audioEnabled !== false,
+          videoEnabled !== false,
+        );
       },
     );
 
-    socket.on("join-request", ({ roomId, userId, userName, avatar }) => {
-      const host = meetingHosts.get(roomId);
-      if (!host) {
-        socket.emit("join-request-rejected", {
-          message:
-            "The host has not started this meeting yet. Please try again later.",
+    socket.on(
+      "join-request",
+      ({ roomId, userId, userName, avatar, audioEnabled, videoEnabled }) => {
+        const host = meetingHosts.get(roomId);
+        if (!host) {
+          socket.emit("join-request-rejected", {
+            message:
+              "The host has not started this meeting yet. Please try again later.",
+          });
+          return;
+        }
+
+        if (!pendingRequests.has(roomId))
+          pendingRequests.set(roomId, new Map());
+        pendingRequests
+          .get(roomId)
+          .set(socket.id, {
+            userId,
+            userName,
+            avatar: avatar || "",
+            audioEnabled: audioEnabled !== false,
+            videoEnabled: videoEnabled !== false,
+          });
+
+        io.to(host.socketId).emit("join-request-received", {
+          socketId: socket.id,
+          userId,
+          userName,
         });
-        return;
-      }
 
-      if (!pendingRequests.has(roomId)) pendingRequests.set(roomId, new Map());
-      pendingRequests
-        .get(roomId)
-        .set(socket.id, { userId, userName, avatar: avatar || "" });
-
-      io.to(host.socketId).emit("join-request-received", {
-        socketId: socket.id,
-        userId,
-        userName,
-      });
-
-      const pending = Array.from(pendingRequests.get(roomId).entries()).map(
-        ([sid, data]) => ({ socketId: sid, ...data }),
-      );
-      io.to(host.socketId).emit("pending-requests", pending);
-    });
+        const pending = Array.from(pendingRequests.get(roomId).entries()).map(
+          ([sid, data]) => ({ socketId: sid, ...data }),
+        );
+        io.to(host.socketId).emit("pending-requests", pending);
+      },
+    );
 
     socket.on("join-request-accepted", async ({ roomId, targetSocketId }) => {
       const host = meetingHosts.get(roomId);
@@ -172,6 +204,8 @@ const initSocket = (server) => {
           userData.userId,
           userData.userName,
           userData.avatar,
+          userData.audioEnabled !== false,
+          userData.videoEnabled !== false,
         );
       }
 
@@ -275,6 +309,13 @@ const initSocket = (server) => {
     });
 
     socket.on("toggle-media", ({ roomId, userId, type, enabled }) => {
+      // Update stored media state for the user
+      const roomMap = rooms.get(roomId);
+      if (roomMap && roomMap.has(socket.id)) {
+        const userData = roomMap.get(socket.id);
+        if (type === "audio") userData.audioEnabled = enabled;
+        if (type === "video") userData.videoEnabled = enabled;
+      }
       socket.to(roomId).emit("user-toggle-media", {
         userId,
         socketId: socket.id,
