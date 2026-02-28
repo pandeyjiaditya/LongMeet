@@ -3,6 +3,7 @@ import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { createMeeting } from "../services/meeting.service";
 import Logo from "../components/common/Logo";
+import { MdMeetingRoom, MdGroupAdd, MdAccountCircle } from "react-icons/md";
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
@@ -56,7 +57,9 @@ const Dashboard = () => {
 
         <div className="dashboard-actions">
           <div className="dashboard-tile" onClick={handleNewMeeting}>
-            <span className="dashboard-tile-icon">🛋️</span>
+            <span className="dashboard-tile-icon">
+              <MdMeetingRoom />
+            </span>
             <h3>Start a Room</h3>
             <p>Create a hangout space</p>
           </div>
@@ -64,12 +67,16 @@ const Dashboard = () => {
             className="dashboard-tile"
             onClick={() => document.getElementById("join-input")?.focus()}
           >
-            <span className="dashboard-tile-icon">🤝</span>
+            <span className="dashboard-tile-icon">
+              <MdGroupAdd />
+            </span>
             <h3>Join Friends</h3>
             <p>Hop into an existing room</p>
           </div>
           <div className="dashboard-tile" onClick={() => navigate("/profile")}>
-            <span className="dashboard-tile-icon">✨</span>
+            <span className="dashboard-tile-icon">
+              <MdAccountCircle />
+            </span>
             <h3>My Profile</h3>
             <p>Customize your vibe</p>
           </div>

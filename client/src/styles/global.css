@@ -641,9 +641,17 @@ a:hover {
   opacity: 1;
 }
 .dashboard-tile-icon {
-  font-size: 2.4rem;
+  font-size: 2.6rem;
   margin-bottom: 14px;
-  display: block;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: 0 4px 16px var(--accent-glow);
 }
 .dashboard-tile h3 {
   font-family: var(--font-display);
