@@ -202,7 +202,9 @@ const Meeting = () => {
 
     // Wait until socket is actually connected before joining
     const joinRoom = () => {
-      console.log(`🚪 Emitting join-room for ${meetingId}, socket connected: ${socket.connected}`);
+      console.log(
+        `🚪 Emitting join-room for ${meetingId}, socket connected: ${socket.connected}`,
+      );
       socket.emit("join-room", {
         roomId: meetingId,
         userId: user?._id,
@@ -344,33 +346,105 @@ const Meeting = () => {
     return map;
   };
 
-  const toggleAudio = () => {
-    const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-    if (audioTrack) {
-      audioTrack.enabled = !audioTrack.enabled;
-      setAudioEnabled(audioTrack.enabled);
+  const toggleAudio = useCallback(async () => {
+    if (audioEnabled) {
+      // Turn OFF: stop audio track to fully release microphone hardware
+      const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+      if (audioTrack) {
+        audioTrack.stop();
+        // Keep ended track in stream so new peer connections still create an audio sender
+      }
+      setAudioEnabled(false);
       socket?.emit("toggle-media", {
         roomId: meetingId,
         userId: user?._id,
         type: "audio",
-        enabled: audioTrack.enabled,
+        enabled: false,
       });
+    } else {
+      // Turn ON: re-acquire microphone
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+        });
+        const newAudioTrack = newStream.getAudioTracks()[0];
+        // Swap the ended track for the new live track in the local stream
+        const oldTrack = localStreamRef.current?.getAudioTracks()[0];
+        if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+        localStreamRef.current?.addTrack(newAudioTrack);
+        // Replace audio track on every peer connection
+        Object.values(peersRef.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+          if (sender) {
+            sender.replaceTrack(newAudioTrack).catch(console.error);
+          }
+        });
+        setAudioEnabled(true);
+        socket?.emit("toggle-media", {
+          roomId: meetingId,
+          userId: user?._id,
+          type: "audio",
+          enabled: true,
+        });
+      } catch (err) {
+        console.error("Failed to re-enable audio:", err);
+      }
     }
-  };
+  }, [audioEnabled, meetingId, socket, user]);
 
-  const toggleVideo = () => {
-    const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-    if (videoTrack) {
-      videoTrack.enabled = !videoTrack.enabled;
-      setVideoEnabled(videoTrack.enabled);
+  const toggleVideo = useCallback(async () => {
+    if (videoEnabled) {
+      // Turn OFF: stop video track to fully release camera hardware
+      const videoTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.stop();
+        // Keep ended track in stream so new peer connections still create a video sender
+      }
+      // Re-assign srcObject so the <video> element shows a black frame
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current;
+      }
+      setVideoEnabled(false);
       socket?.emit("toggle-media", {
         roomId: meetingId,
         userId: user?._id,
         type: "video",
-        enabled: videoTrack.enabled,
+        enabled: false,
       });
+    } else {
+      // Turn ON: re-acquire camera
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+        const newVideoTrack = newStream.getVideoTracks()[0];
+        // Swap the ended track for the new live track in the local stream
+        const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+        localStreamRef.current?.addTrack(newVideoTrack);
+        // Replace video track on every peer connection
+        Object.values(peersRef.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) {
+            sender.replaceTrack(newVideoTrack).catch(console.error);
+          }
+        });
+        // Update local video element with the restored camera
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = localStreamRef.current;
+        }
+        setVideoEnabled(true);
+        socket?.emit("toggle-media", {
+          roomId: meetingId,
+          userId: user?._id,
+          type: "video",
+          enabled: true,
+        });
+      } catch (err) {
+        console.error("Failed to re-enable video:", err);
+      }
     }
-  };
+  }, [videoEnabled, meetingId, socket, user]);
 
   const toggleScreenShare = async () => {
     if (screenSharing) {
