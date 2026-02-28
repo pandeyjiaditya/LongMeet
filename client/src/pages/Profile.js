@@ -19,7 +19,6 @@ const Profile = () => {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
 
-  // Password change
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
@@ -157,7 +156,6 @@ const Profile = () => {
         <div className="profile-card">
           <h2>Your Profile</h2>
 
-          {/* Avatar */}
           <div className="profile-avatar-section" onClick={handleAvatarClick}>
             {avatarPreview ? (
               <img
@@ -187,7 +185,6 @@ const Profile = () => {
             <p className={`profile-msg ${message.type}`}>{message.text}</p>
           )}
 
-          {/* Profile form */}
           <form onSubmit={handleSaveProfile} className="profile-form">
             <label>
               <span className="profile-label">Name</span>
@@ -230,7 +227,6 @@ const Profile = () => {
             </button>
           </form>
 
-          {/* Password section */}
           <div className="profile-divider" />
           <h3 className="profile-section-title">Change Password</h3>
 
@@ -292,7 +288,6 @@ const Profile = () => {
             </button>
           </form>
 
-          {/* Account info */}
           <div className="profile-divider" />
           <div className="profile-meta">
             <p>

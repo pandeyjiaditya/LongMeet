@@ -57,15 +57,12 @@ export const AuthProvider = ({ children }) => {
       const res = await api.get("/auth/me");
       dispatch({ type: "USER_LOADED", payload: res.data.user });
 
-      // Silently refresh the token so active users never expire
       try {
         const refreshRes = await api.post("/auth/refresh-token");
         if (refreshRes.data?.token) {
           setToken(refreshRes.data.token);
         }
-      } catch {
-        // Refresh failed — current token is still valid, ignore
-      }
+      } catch {}
     } catch {
       dispatch({ type: "AUTH_ERROR" });
     }

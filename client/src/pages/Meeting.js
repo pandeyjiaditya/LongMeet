@@ -12,10 +12,6 @@ import SyncVideoPlayer from "../components/meeting/SyncVideoPlayer";
 import ParticipantsPanel from "../components/meeting/ParticipantsPanel";
 import PreJoinScreen from "../components/meeting/PreJoinScreen";
 
-// STUN + TURN servers for reliable NAT traversal in production.
-// STUN alone fails when both peers are behind symmetric NATs.
-// Free TURN relays from OpenRelay (metered.ca) — replace with your
-// own credentials for a production app.
 const ICE_SERVERS = {
   iceServers: [
     { urls: "stun:stun.l.google.com:19302" },
@@ -51,7 +47,6 @@ const Meeting = () => {
   const { socket, connectSocket } = useSocket();
   const navigate = useNavigate();
 
-  // Peers: { [socketId]: { userName, avatar, stream, peerConnection } }
   const [peers, setPeers] = useState({});
   const [memberCount, setMemberCount] = useState(1);
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -65,47 +60,38 @@ const Meeting = () => {
   const hasJoinedRef = useRef(false);
   const [chatNotification, setChatNotification] = useState(null);
 
-  // Remote media state: { [socketId]: { audioEnabled: bool, videoEnabled: bool } }
   const [remoteMediaState, setRemoteMediaState] = useState({});
-  // Track which remote peers are screen sharing: { [socketId]: boolean }
   const [remoteScreenSharing, setRemoteScreenSharing] = useState({});
-  // Pinned participant socketId (null = no pin, use grid layout)
   const [pinnedPeer, setPinnedPeer] = useState(null);
-  // Participants panel visibility
   const [isParticipantsPanelOpen, setIsParticipantsPanelOpen] = useState(false);
-  // Room users from server (with avatar, userId, userName, socketId)
   const [roomUsers, setRoomUsers] = useState([]);
 
-  // Permission / control state
-  const [watchPartyHost, setWatchPartyHost] = useState(null); // { socketId, userName }
-  const [controlRequest, setControlRequest] = useState(null); // incoming request: { type, fromSocketId, fromUserName }
-  const [controlNotice, setControlNotice] = useState(""); // transient notification
+  const [watchPartyHost, setWatchPartyHost] = useState(null);
+  const [controlRequest, setControlRequest] = useState(null);
+  const [controlNotice, setControlNotice] = useState("");
 
-  // Host / admission control state
   const [isHost, setIsHost] = useState(false);
-  const [hostCheckDone, setHostCheckDone] = useState(false); // true once we know if user is host
-  const [admitted, setAdmitted] = useState(false); // true once user is in the meeting
+  const [hostCheckDone, setHostCheckDone] = useState(false);
+  const [admitted, setAdmitted] = useState(false);
   const [waitingForApproval, setWaitingForApproval] = useState(false);
   const [requestDenied, setRequestDenied] = useState(false);
   const [requestDeniedMsg, setRequestDeniedMsg] = useState("");
-  const [pendingRequests, setPendingRequests] = useState([]); // host sees these
-  const [hostUserId, setHostUserId] = useState(null); // meeting host's userId
+  const [pendingRequests, setPendingRequests] = useState([]);
+  const [hostUserId, setHostUserId] = useState(null);
 
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
   const screenStreamRef = useRef(null);
-  const localCameraPreviewRef = useRef(null); // PiP camera during screen share
-  const peersRef = useRef({}); // mutable ref to track RTCPeerConnections
+  const localCameraPreviewRef = useRef(null);
+  const peersRef = useRef({});
   const [streamReady, setStreamReady] = useState(false);
-  const facingModeRef = useRef("user"); // "user" = front, "environment" = back
-  const [readyToJoin, setReadyToJoin] = useState(false); // pre-join screen gate
+  const facingModeRef = useRef("user");
+  const [readyToJoin, setReadyToJoin] = useState(false);
   const [preJoinAudio, setPreJoinAudio] = useState(true);
   const [preJoinVideo, setPreJoinVideo] = useState(true);
   const [copiedId, setCopiedId] = useState(false);
-  // Layout mode: "gallery" | "spotlight" | "screenOnly"
   const [layoutMode, setLayoutMode] = useState("gallery");
 
-  // ─── Live clock in header ─────────────────────────────────────
   useEffect(() => {
     const el = document.getElementById("meeting-clock");
     if (!el) return;
@@ -121,17 +107,13 @@ const Meeting = () => {
     return () => clearInterval(id);
   }, [admitted]);
 
-  // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
     (remoteSocketId, remoteUserName, isInitiator, remoteAvatar = "") => {
-      if (peersRef.current[remoteSocketId]) {
-        // Already exists, skip
+      if (peersRef.current[remoteSocketId])
         return peersRef.current[remoteSocketId];
-      }
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
 
-      // Add our local tracks to the connection
       const stream = screenStreamRef.current || localStreamRef.current;
       if (stream) {
         stream.getTracks().forEach((track) => {
@@ -139,7 +121,6 @@ const Meeting = () => {
         });
       }
 
-      // When we receive remote tracks, set them on the peer's video
       pc.ontrack = (event) => {
         const [remoteStream] = event.streams;
         setPeers((prev) => ({
@@ -153,7 +134,6 @@ const Meeting = () => {
         }));
       };
 
-      // Send ICE candidates to the remote peer
       pc.onicecandidate = (event) => {
         if (event.candidate) {
           socket?.emit("ice-candidate", {
@@ -164,9 +144,6 @@ const Meeting = () => {
       };
 
       pc.oniceconnectionstatechange = () => {
-        console.log(
-          `ICE state with ${remoteUserName}: ${pc.iceConnectionState}`,
-        );
         if (
           pc.iceConnectionState === "disconnected" ||
           pc.iceConnectionState === "failed"
@@ -175,7 +152,6 @@ const Meeting = () => {
         }
       };
 
-      // Store it
       peersRef.current[remoteSocketId] = pc;
       setPeers((prev) => ({
         ...prev,
@@ -186,7 +162,6 @@ const Meeting = () => {
           ...prev[remoteSocketId],
         },
       }));
-      // Initialize remote media state (assume enabled until told otherwise)
       setRemoteMediaState((prev) => ({
         ...prev,
         [remoteSocketId]: prev[remoteSocketId] || {
@@ -200,7 +175,6 @@ const Meeting = () => {
     [socket],
   );
 
-  // ─── Cleanup a peer connection ────────────────────────────────
   const cleanupPeer = useCallback((socketId) => {
     const pc = peersRef.current[socketId];
     if (pc) {
@@ -222,15 +196,12 @@ const Meeting = () => {
       delete updated[socketId];
       return updated;
     });
-    // Unpin if the pinned peer left
     setPinnedPeer((prev) => (prev === socketId ? null : prev));
   }, []);
 
-  // ─── Get local media stream & check host status ────────────────
   useEffect(() => {
     connectSocket();
 
-    // Fetch meeting info to determine if the current user is the host
     const checkHostStatus = async () => {
       try {
         const res = await api.get(`/meetings/${meetingId}`);
@@ -242,9 +213,7 @@ const Meeting = () => {
             setIsHost(true);
           }
         }
-      } catch (err) {
-        // Meeting may not exist in DB yet (fresh room) — creator is host
-        console.log("Meeting not found in DB, treating as host:", err.message);
+      } catch {
         setIsHost(true);
       } finally {
         setHostCheckDone(true);
@@ -262,9 +231,7 @@ const Meeting = () => {
         localStreamRef.current = stream;
         if (localVideoRef.current) localVideoRef.current.srcObject = stream;
         setStreamReady(true);
-      } catch (err) {
-        console.error("Failed to get local stream:", err);
-        // Try with just audio if video fails
+      } catch {
         try {
           const audioStream = await navigator.mediaDevices.getUserMedia({
             video: false,
@@ -273,12 +240,10 @@ const Meeting = () => {
           localStreamRef.current = audioStream;
           if (localVideoRef.current)
             localVideoRef.current.srcObject = audioStream;
-          setVideoEnabled(false); // camera not available
+          setVideoEnabled(false);
           setPreJoinVideo(false);
           setStreamReady(true);
-        } catch (err2) {
-          console.error("Failed to get any media:", err2);
-          // Still allow joining without media
+        } catch {
           setVideoEnabled(false);
           setAudioEnabled(false);
           setPreJoinVideo(false);
@@ -297,7 +262,6 @@ const Meeting = () => {
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((track) => track.stop());
       }
-      // Close all peer connections
       Object.keys(peersRef.current).forEach((id) => {
         peersRef.current[id]?.close();
       });
@@ -305,11 +269,9 @@ const Meeting = () => {
     };
   }, []);
 
-  // ─── Socket event handlers for WebRTC signaling ───────────────
   useEffect(() => {
     if (!socket || !streamReady || !hostCheckDone || !readyToJoin) return;
 
-    // Apply pre-join media choices before joining
     if (!preJoinAudio) {
       const audioTrack = localStreamRef.current?.getAudioTracks()[0];
       if (audioTrack) audioTrack.stop();
@@ -350,7 +312,6 @@ const Meeting = () => {
       socket.once("connect", joinOrRequest);
     }
 
-    // ── Host: incoming join requests ────────────────────────────
     socket.on("join-request-received", ({ socketId, userId, userName }) => {
       setPendingRequests((prev) => {
         if (prev.find((r) => r.socketId === socketId)) return prev;
@@ -362,33 +323,27 @@ const Meeting = () => {
       setPendingRequests(list);
     });
 
-    // ── Non-host: join request accepted ─────────────────────────
     socket.on("join-request-accepted", () => {
       setWaitingForApproval(false);
       setAdmitted(true);
     });
 
-    // ── Non-host: join request rejected ─────────────────────────
     socket.on("join-request-rejected", ({ message }) => {
       setWaitingForApproval(false);
       setRequestDenied(true);
       setRequestDeniedMsg(message || "Your request to join was denied.");
     });
 
-    // ── Participant removed by host ─────────────────────────────
     socket.on("you-were-removed", ({ message }) => {
       alert(message || "You have been removed from the meeting.");
       navigate("/dashboard");
     });
 
-    // ── Host left the meeting ───────────────────────────────────
     socket.on("host-left", () => {
       setControlNotice("The host has left the meeting.");
     });
 
-    // ── Receive list of existing users → create offers to each ──
     socket.on("all-users", async (users) => {
-      console.log("Existing users in room:", users);
       for (const u of users) {
         const pc = createPeerConnection(
           u.socketId,
@@ -400,17 +355,11 @@ const Meeting = () => {
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           socket.emit("offer", { to: u.socketId, offer });
-          console.log(`📡 Sent offer to ${u.userName}`);
-        } catch (err) {
-          console.error("Failed to create offer:", err);
-        }
+        } catch {}
       }
     });
 
-    // ── A new user joined after us → they will send us an offer ─
     socket.on("user-joined", (data) => {
-      console.log("User joined:", data.userName);
-      // Pre-store avatar + name so it's available when the offer arrives
       setPeers((prev) => ({
         ...prev,
         [data.socketId]: {
@@ -422,13 +371,9 @@ const Meeting = () => {
       }));
     });
 
-    // ── Receive an offer → create answer ────────────────────────
     socket.on("offer", async ({ from, offer }) => {
-      console.log(`📥 Received offer from ${from}`);
-      // Find who this is from the room users
       const roomUsers = getRoomUsersFromPeers();
       const userName = roomUsers[from] || "Participant";
-      // Retrieve pre-stored avatar from peers state
       const peerAvatar = getPeerAvatar(from);
 
       const pc = createPeerConnection(from, userName, false, peerAvatar);
@@ -437,54 +382,39 @@ const Meeting = () => {
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { to: from, answer });
-        console.log(`📡 Sent answer to ${from}`);
-      } catch (err) {
-        console.error("Failed to handle offer:", err);
-      }
+      } catch {}
     });
 
-    // ── Receive an answer ───────────────────────────────────────
     socket.on("answer", async ({ from, answer }) => {
-      console.log(`📥 Received answer from ${from}`);
       const pc = peersRef.current[from];
       if (pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch (err) {
-          console.error("Failed to set remote description:", err);
-        }
+        } catch {}
       }
     });
 
-    // ── Receive ICE candidate ───────────────────────────────────
     socket.on("ice-candidate", async ({ from, candidate }) => {
       const pc = peersRef.current[from];
       if (pc) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          console.error("Failed to add ICE candidate:", err);
-        }
+        } catch {}
       }
     });
 
-    // ── User left ───────────────────────────────────────────────
     socket.on("user-left", (data) => {
-      console.log("User left:", data.userName);
       cleanupPeer(data.socketId);
     });
 
-    // ── Room member count ───────────────────────────────────────
     socket.on("room-users", (users) => {
       setMemberCount(users.length);
       setRoomUsers(users);
     });
 
-    // ── Media toggle from other users ───────────────────────────
     socket.on(
       "user-toggle-media",
       ({ userId, socketId: sid, type, enabled }) => {
-        console.log(`User ${userId} (${sid}) toggled ${type}: ${enabled}`);
         if (sid) {
           setRemoteMediaState((prev) => {
             const updated = { ...prev };
@@ -498,22 +428,18 @@ const Meeting = () => {
       },
     );
 
-    // ── Screen sharing events ───────────────────────────────────
     socket.on("screen-share-started", ({ userId, userName, socketId: sId }) => {
-      console.log(`User ${userName} started screen sharing`);
       if (sId) {
         setRemoteScreenSharing((prev) => ({ ...prev, [sId]: true }));
       }
     });
 
     socket.on("screen-share-stopped", ({ userId, socketId: sId }) => {
-      console.log(`User ${userId} stopped screen sharing`);
       if (sId) {
         setRemoteScreenSharing((prev) => ({ ...prev, [sId]: false }));
       }
     });
 
-    // ── Permission / control events ─────────────────────────────
     socket.on("control-request", ({ type, fromSocketId, fromUserName }) => {
       setControlRequest({ type, fromSocketId, fromUserName });
     });
@@ -540,7 +466,6 @@ const Meeting = () => {
       }
     });
 
-    // Load chat history from API on first connect
     if (!chatHistoryLoadedRef.current) {
       chatHistoryLoadedRef.current = true;
       api
@@ -550,10 +475,9 @@ const Meeting = () => {
             setChatMessages(res.data.messages);
           }
         })
-        .catch((err) => console.error("Failed to load chat history:", err));
+        .catch(() => {});
     }
 
-    // ── Watch party events ──────────────────────────────────────
     socket.on("watch-party:url-changed", ({ url, hostSocketId, hostName }) => {
       setWatchPartyUrl(url);
       setWatchPartyHost({ socketId: hostSocketId, userName: hostName });
@@ -603,30 +527,21 @@ const Meeting = () => {
     cleanupPeer,
   ]);
 
-  // Helper: get userName by socketId from current peers
   const getRoomUsersFromPeers = () => {
     const map = {};
-    Object.entries(peersRef.current).forEach(([socketId]) => {
-      // Use state peers for name lookup
-    });
+    Object.entries(peersRef.current).forEach(([socketId]) => {});
     return map;
   };
 
-  // Helper: get avatar for a given socketId from current peers state
   const getPeerAvatar = (socketId) => {
-    // Try from peers state first, as it's set from user-joined
     const peerState = peers[socketId];
     return peerState?.avatar || "";
   };
 
   const toggleAudio = useCallback(async () => {
     if (audioEnabled) {
-      // Turn OFF: stop audio track to fully release microphone hardware
       const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.stop();
-        // Keep ended track in stream so new peer connections still create an audio sender
-      }
+      if (audioTrack) audioTrack.stop();
       setAudioEnabled(false);
       socket?.emit("toggle-media", {
         roomId: meetingId,
@@ -635,17 +550,14 @@ const Meeting = () => {
         enabled: false,
       });
     } else {
-      // Turn ON: re-acquire microphone
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
         });
         const newAudioTrack = newStream.getAudioTracks()[0];
-        // Swap the ended track for the new live track in the local stream
         const oldTrack = localStreamRef.current?.getAudioTracks()[0];
         if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
         localStreamRef.current?.addTrack(newAudioTrack);
-        // Replace audio track on every peer connection
         Object.values(peersRef.current).forEach((pc) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
           if (sender) {
@@ -659,24 +571,17 @@ const Meeting = () => {
           type: "audio",
           enabled: true,
         });
-      } catch (err) {
-        console.error("Failed to re-enable audio:", err);
-      }
+      } catch {}
     }
   }, [audioEnabled, meetingId, socket, user]);
 
   const toggleVideo = useCallback(async () => {
     if (screenSharing) {
-      // While screen sharing, toggle only affects the camera stream (for PiP),
-      // NOT the screen share being sent to peers or shown in the main tile.
-      // Do NOT emit toggle-media — peers still see the screen share track.
       if (videoEnabled) {
-        // Turn camera OFF — stop the camera track but keep screen share going
         const camTrack = localStreamRef.current?.getVideoTracks()[0];
         if (camTrack) camTrack.stop();
         setVideoEnabled(false);
       } else {
-        // Turn camera ON — re-acquire camera into localStreamRef (PiP only)
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({
             video: true,
@@ -685,27 +590,18 @@ const Meeting = () => {
           const oldTrack = localStreamRef.current?.getVideoTracks()[0];
           if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
           localStreamRef.current?.addTrack(newVideoTrack);
-          // Update PiP preview if it exists
           if (localCameraPreviewRef.current) {
             localCameraPreviewRef.current.srcObject = localStreamRef.current;
           }
           setVideoEnabled(true);
-        } catch (err) {
-          console.error("Failed to re-enable camera during screen share:", err);
-        }
+        } catch {}
       }
       return;
     }
 
-    // Normal (no screen share) toggle
     if (videoEnabled) {
-      // Turn OFF: stop video track to fully release camera hardware
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.stop();
-        // Keep ended track in stream so new peer connections still create a video sender
-      }
-      // Re-assign srcObject so the <video> element shows a black frame
+      if (videoTrack) videoTrack.stop();
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
@@ -717,24 +613,20 @@ const Meeting = () => {
         enabled: false,
       });
     } else {
-      // Turn ON: re-acquire camera
       try {
         const newStream = await navigator.mediaDevices.getUserMedia({
           video: true,
         });
         const newVideoTrack = newStream.getVideoTracks()[0];
-        // Swap the ended track for the new live track in the local stream
         const oldTrack = localStreamRef.current?.getVideoTracks()[0];
         if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
         localStreamRef.current?.addTrack(newVideoTrack);
-        // Replace video track on every peer connection
         Object.values(peersRef.current).forEach((pc) => {
           const sender = pc.getSenders().find((s) => s.track?.kind === "video");
           if (sender) {
             sender.replaceTrack(newVideoTrack).catch(console.error);
           }
         });
-        // Update local video element with the restored camera
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = localStreamRef.current;
         }
@@ -745,26 +637,21 @@ const Meeting = () => {
           type: "video",
           enabled: true,
         });
-      } catch (err) {
-        console.error("Failed to re-enable video:", err);
-      }
+      } catch {}
     }
   }, [videoEnabled, screenSharing, meetingId, socket, user]);
 
   const toggleScreenShare = async () => {
     if (screenSharing) {
-      // Stop screen sharing — revert to camera
       if (screenStreamRef.current) {
         screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
       }
 
-      // Restore local video element to camera stream
       if (localVideoRef.current && localStreamRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
 
-      // If camera is on, replace peer video tracks back to camera
       const camTrack = localStreamRef.current?.getVideoTracks()[0];
       if (
         camTrack &&
@@ -778,7 +665,6 @@ const Meeting = () => {
           }
         });
       } else if (videoEnabled) {
-        // Camera track was stopped/ended — re-acquire it
         try {
           const newStream = await navigator.mediaDevices.getUserMedia({
             video: true,
@@ -798,11 +684,8 @@ const Meeting = () => {
               sender.replaceTrack(newTrack).catch(console.error);
             }
           });
-        } catch (err) {
-          console.error("Failed to restore camera after screen share:", err);
-        }
+        } catch {}
       } else {
-        // Camera was off — just replace with the (ended) local track so peers see black
         replaceTrackOnAllPeers(localStreamRef.current);
       }
 
@@ -819,12 +702,10 @@ const Meeting = () => {
         });
         screenStreamRef.current = screenStream;
 
-        // Show screen share in the main local tile
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
         }
 
-        // Replace only the video track on peers with the screen track
         const screenTrack = screenStream.getVideoTracks()[0];
         if (screenTrack) {
           Object.values(peersRef.current).forEach((pc) => {
@@ -844,13 +725,10 @@ const Meeting = () => {
           userName: user?.name,
         });
 
-        // Handle browser "Stop sharing" button
         screenTrack.onended = () => {
-          // Restore camera to main tile
           if (localVideoRef.current && localStreamRef.current) {
             localVideoRef.current.srcObject = localStreamRef.current;
           }
-          // Restore camera track on peers
           const camTrack = localStreamRef.current?.getVideoTracks()[0];
           if (camTrack && camTrack.readyState === "live") {
             Object.values(peersRef.current).forEach((pc) => {
@@ -871,13 +749,10 @@ const Meeting = () => {
             userId: user?._id,
           });
         };
-      } catch (err) {
-        console.error("Screen share failed:", err);
-      }
+      } catch {}
     }
   };
 
-  // ─── Flip camera (mobile only) ────────────────────────────
   const flipCamera = useCallback(async () => {
     if (!videoEnabled || screenSharing) return;
     const newFacing = facingModeRef.current === "user" ? "environment" : "user";
@@ -886,18 +761,15 @@ const Meeting = () => {
         video: { facingMode: { exact: newFacing } },
       });
       const newVideoTrack = newStream.getVideoTracks()[0];
-      // Swap track in local stream
       const oldTrack = localStreamRef.current?.getVideoTracks()[0];
       if (oldTrack) {
         oldTrack.stop();
         localStreamRef.current.removeTrack(oldTrack);
       }
       localStreamRef.current?.addTrack(newVideoTrack);
-      // Update local preview
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
-      // Replace video track on every peer connection
       Object.values(peersRef.current).forEach((pc) => {
         const sender = pc.getSenders().find((s) => s.track?.kind === "video");
         if (sender) {
@@ -905,12 +777,9 @@ const Meeting = () => {
         }
       });
       facingModeRef.current = newFacing;
-    } catch (err) {
-      console.error("Failed to flip camera:", err);
-    }
+    } catch {}
   }, [videoEnabled, screenSharing]);
 
-  // Replace the video track on all active peer connections
   const replaceTrackOnAllPeers = (newStream) => {
     if (!newStream) return;
     const videoTrack = newStream.getVideoTracks()[0];
@@ -926,7 +795,6 @@ const Meeting = () => {
 
   const leaveMeeting = () => {
     socket?.emit("leave-room", { roomId: meetingId, userId: user?._id });
-    // Close all peer connections
     Object.keys(peersRef.current).forEach((id) => {
       peersRef.current[id]?.close();
     });
@@ -950,7 +818,6 @@ const Meeting = () => {
     return () => clearTimeout(t);
   }, [chatNotification]);
 
-  // ─── Host: accept / reject / remove helpers ───────────────────
   const handleAcceptRequest = (targetSocketId) => {
     socket?.emit("join-request-accepted", {
       roomId: meetingId,
@@ -969,7 +836,6 @@ const Meeting = () => {
     socket?.emit("remove-participant", { roomId: meetingId, targetSocketId });
   };
 
-  // ─── Pre-join media toggles (before entering room) ────────────
   const preJoinToggleAudio = () => {
     const stream = localStreamRef.current;
     if (!stream) return;
@@ -999,17 +865,12 @@ const Meeting = () => {
         if (oldTrack) stream.removeTrack(oldTrack);
         stream.addTrack(newTrack);
         setPreJoinVideo(true);
-      } catch (err) {
-        console.error("Could not re-enable camera:", err);
-      }
+      } catch {}
     }
   };
 
-  const handlePreJoinReady = () => {
-    setReadyToJoin(true);
-  };
+  const handlePreJoinReady = () => setReadyToJoin(true);
 
-  // ─── PiP: keep camera preview alive while screen sharing ───
   useEffect(() => {
     if (
       screenSharing &&
@@ -1024,7 +885,6 @@ const Meeting = () => {
     }
   }, [screenSharing, videoEnabled]);
 
-  // Build peer entries list for rendering
   const peerEntries = Object.entries(peers);
   const isLocalPinned = pinnedPeer === "local";
   const pinnedEntry =
@@ -1036,23 +896,18 @@ const Meeting = () => {
       ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
       : peerEntries;
 
-  // Determine if anyone is screen sharing (remote or local)
   const anyoneScreenSharing =
     screenSharing || Object.values(remoteScreenSharing).some((v) => v);
 
-  // Find which remote peer is screen sharing (for spotlight/screen-only modes)
   const screenSharerSocketId = Object.entries(remoteScreenSharing).find(
     ([, v]) => v,
   )?.[0];
 
-  // Effective layout: override layout when relevant
-  // "screenOnly" only makes sense when someone is sharing screen
   const effectiveLayout =
     layoutMode === "screenOnly" && !anyoneScreenSharing
       ? "gallery"
       : layoutMode;
 
-  // In spotlight mode, auto-pin the screen sharer or first peer
   const spotlightPinned =
     effectiveLayout === "spotlight"
       ? screenSharing
@@ -1060,7 +915,6 @@ const Meeting = () => {
         : screenSharerSocketId || peerEntries[0]?.[0] || null
       : null;
 
-  // Resolve who is actually pinned (manual pin overrides spotlight unless layout is screen-only)
   const resolvedPin =
     effectiveLayout === "screenOnly"
       ? screenSharing
@@ -1080,15 +934,13 @@ const Meeting = () => {
       ? peerEntries.filter(([sid]) => sid !== resolvedPin)
       : peerEntries;
 
-  // Smart grid: compute participant count class for CSS
   const totalInGrid = resolvedIsLocalPinned
     ? resolvedUnpinnedEntries.length
-    : resolvedUnpinnedEntries.length + 1; // +1 for local
+    : resolvedUnpinnedEntries.length + 1;
   const gridCountClass = resolvedPin
     ? "sidebar-grid"
     : `count-${Math.min(totalInGrid, 10)}`;
 
-  // ─── Loading: waiting for camera/mic + host check ─────────────
   if (!streamReady || !hostCheckDone) {
     return (
       <div className="lobby-container">
@@ -1101,7 +953,6 @@ const Meeting = () => {
     );
   }
 
-  // ─── Pre-join screen ──────────────────────────────────────────
   if (streamReady && hostCheckDone && !readyToJoin) {
     return (
       <PreJoinScreen
@@ -1119,7 +970,6 @@ const Meeting = () => {
     );
   }
 
-  // ─── Waiting for approval screen (non-host) ──────────────────
   if (waitingForApproval) {
     return (
       <div className="lobby-container">
@@ -1139,7 +989,6 @@ const Meeting = () => {
     );
   }
 
-  // ─── Request denied screen ────────────────────────────────────
   if (requestDenied) {
     return (
       <div className="lobby-container">
@@ -1160,7 +1009,6 @@ const Meeting = () => {
 
   return (
     <div className="meeting-container">
-      {/* Meeting header — GMeet style */}
       <div className="meeting-header">
         <div className="meeting-header-left">
           <span className="meeting-header-title">LongMeet</span>
@@ -1191,7 +1039,6 @@ const Meeting = () => {
         <div
           className={`video-area ${resolvedPin ? "has-pinned" : ""} layout-${effectiveLayout}`}
         >
-          {/* Pinned (spotlight) view — remote peer pinned */}
           {resolvedPinnedEntry && (
             <div className="pinned-video-section">
               <VideoPlayer
@@ -1230,7 +1077,6 @@ const Meeting = () => {
             </div>
           )}
 
-          {/* Pinned (spotlight) view — local user pinned */}
           {resolvedIsLocalPinned && (
             <div className="pinned-video-section">
               <VideoPlayer
@@ -1256,7 +1102,6 @@ const Meeting = () => {
             </div>
           )}
 
-          {/* Screen share PiP – shows your camera while sharing screen */}
           {screenSharing && videoEnabled && (
             <div className="screen-share-pip">
               <video
@@ -1274,7 +1119,6 @@ const Meeting = () => {
             </div>
           )}
 
-          {/* Grid of unpinned + local — hidden in screenOnly mode */}
           {effectiveLayout !== "screenOnly" && (
             <div className={`video-grid ${gridCountClass}`}>
               {!resolvedIsLocalPinned && (
@@ -1404,7 +1248,6 @@ const Meeting = () => {
         />
       )}
 
-      {/* Permission request modal */}
       {controlRequest && (
         <div className="permission-modal-overlay">
           <div className="permission-modal">
@@ -1449,7 +1292,6 @@ const Meeting = () => {
         </div>
       )}
 
-      {/* Control transfer notification */}
       {controlNotice && (
         <div className="control-notice" onClick={() => setControlNotice("")}>
           {controlNotice}
@@ -1473,7 +1315,6 @@ const Meeting = () => {
         </div>
       )}
 
-      {/* Host: Pending join requests panel */}
       {isHost && pendingRequests.length > 0 && (
         <div className="pending-requests-panel">
           <h3>Join Requests ({pendingRequests.length})</h3>

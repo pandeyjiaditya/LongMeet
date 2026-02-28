@@ -1,7 +1,6 @@
 const { v4: uuidv4 } = require("uuid");
 const Meeting = require("../models/Meeting.model");
 
-// Create a new meeting
 exports.createMeeting = async (req, res, next) => {
   try {
     const meetingId = uuidv4();
@@ -16,7 +15,6 @@ exports.createMeeting = async (req, res, next) => {
   }
 };
 
-// Get meeting by meetingId
 exports.getMeeting = async (req, res, next) => {
   try {
     const meeting = await Meeting.findOne({ meetingId: req.params.meetingId })
@@ -34,7 +32,6 @@ exports.getMeeting = async (req, res, next) => {
   }
 };
 
-// End a meeting
 exports.endMeeting = async (req, res, next) => {
   try {
     const meeting = await Meeting.findOneAndUpdate(
@@ -43,12 +40,10 @@ exports.endMeeting = async (req, res, next) => {
       { new: true },
     );
     if (!meeting)
-      return res
-        .status(404)
-        .json({
-          success: false,
-          message: "Meeting not found or not authorized",
-        });
+      return res.status(404).json({
+        success: false,
+        message: "Meeting not found or not authorized",
+      });
 
     res.json({ success: true, meeting });
   } catch (err) {
@@ -56,7 +51,6 @@ exports.endMeeting = async (req, res, next) => {
   }
 };
 
-// Get user's meeting history
 exports.getMyMeetings = async (req, res, next) => {
   try {
     const meetings = await Meeting.find({

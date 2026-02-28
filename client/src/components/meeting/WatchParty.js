@@ -17,7 +17,6 @@ const WatchParty = ({
     e.preventDefault();
     if (!url.trim()) return;
 
-    // Convert YouTube watch URLs to embed URLs
     let videoUrl = url.trim();
     const ytMatch = videoUrl.match(
       /(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
@@ -55,7 +54,6 @@ const WatchParty = ({
         </button>
       </div>
 
-      {/* Show current controller */}
       {watchPartyHost && (
         <div className="watch-party-host-info">
           <span className="host-badge">🎮 Controller:</span>{" "}

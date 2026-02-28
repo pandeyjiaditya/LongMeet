@@ -10,7 +10,6 @@ const chatRoutes = require("./routes/chat.routes");
 
 const app = express();
 
-// Build allowed origins (handle http/https and trailing slash mismatches)
 const rawClientUrl = (
   process.env.CLIENT_URL || "http://localhost:3000"
 ).replace(/\/+$/, "");
@@ -20,9 +19,6 @@ if (rawClientUrl.startsWith("https://"))
 if (rawClientUrl.startsWith("http://"))
   allowedOrigins.push(rawClientUrl.replace("http://", "https://"));
 
-console.log("🌐 Express CORS allowed origins:", allowedOrigins);
-
-// Middleware
 app.use(
   cors({
     origin: allowedOrigins,
@@ -32,19 +28,16 @@ app.use(
 app.use(express.json({ limit: "5mb" }));
 app.use(morgan("dev"));
 
-// Health check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", service: "LongMeet API" });
 });
 
-// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/meetings", meetingRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/rooms", roomRoutes);
 app.use("/api/chat", chatRoutes);
 
-// Global error handler
 app.use((err, _req, res, _next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({

@@ -25,21 +25,18 @@ const VideoPlayer = ({
   const [hovered, setHovered] = useState(false);
 
   useEffect(() => {
-    if (stream && ref.current) {
-      ref.current.srcObject = stream;
-    }
+    if (stream && ref.current) ref.current.srcObject = stream;
   }, [stream, ref]);
 
-  // Derive initials from userName
-  const getInitials = (name) => {
-    if (!name) return "?";
-    return name
-      .split(" ")
-      .map((w) => w[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
+  const getInitials = (name) =>
+    name
+      ? name
+          .split(" ")
+          .map((w) => w[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2)
+      : "?";
 
   const showCameraOff = !videoEnabled && !isScreenShare;
 
@@ -49,7 +46,6 @@ const VideoPlayer = ({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Video element — always mounted so ref stays stable */}
       <video
         ref={ref}
         autoPlay
@@ -58,7 +54,6 @@ const VideoPlayer = ({
         className={showCameraOff ? "video-hidden" : ""}
       />
 
-      {/* Camera-off avatar fallback */}
       {showCameraOff && (
         <div className="video-avatar-fallback">
           {avatar ? (
@@ -70,10 +65,8 @@ const VideoPlayer = ({
         </div>
       )}
 
-      {/* Bottom bar — always visible */}
       <div className="video-bottom-bar">
         <div className="video-name-row">
-          {/* Small avatar in bottom bar */}
           {!isScreenShare && (
             <span className="bottom-bar-avatar">
               {avatar ? (
@@ -90,7 +83,6 @@ const VideoPlayer = ({
             {userName || "Participant"}
             {isHost && <span className="host-tag">Host</span>}
           </span>
-          {/* Media status indicators */}
           <span className="media-indicators">
             {!audioEnabled && (
               <span className="media-indicator muted-icon">
@@ -106,10 +98,8 @@ const VideoPlayer = ({
         </div>
       </div>
 
-      {/* Pin/Unpin controls */}
       {onPin && (
         <>
-          {/* Hover overlay — pin button for unpinned tiles */}
           {!isPinned && hovered && (
             <div className="video-hover-overlay">
               <button
@@ -124,7 +114,6 @@ const VideoPlayer = ({
               </button>
             </div>
           )}
-          {/* Always-visible unpin bar for pinned tile */}
           {isPinned && (
             <div className="video-unpin-overlay">
               <button
@@ -143,7 +132,6 @@ const VideoPlayer = ({
         </>
       )}
 
-      {/* Pinned badge */}
       {isPinned && (
         <div className="pinned-indicator">
           <MdPushPin />

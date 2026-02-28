@@ -46,7 +46,6 @@ const PreJoinScreen = ({
           </p>
         </div>
 
-        {/* Camera preview */}
         <div className="prejoin-preview">
           {videoEnabled && localStream ? (
             <video
@@ -73,7 +72,6 @@ const PreJoinScreen = ({
             </div>
           )}
 
-          {/* Audio indicator */}
           {audioEnabled && (
             <div className="prejoin-audio-indicator">
               <span className="prejoin-audio-wave" />
@@ -83,7 +81,6 @@ const PreJoinScreen = ({
           )}
         </div>
 
-        {/* Controls */}
         <div className="prejoin-controls">
           <button
             className={`prejoin-toggle-btn ${!audioEnabled ? "off" : ""}`}
@@ -112,7 +109,6 @@ const PreJoinScreen = ({
           </button>
         </div>
 
-        {/* Join / Cancel buttons */}
         <div className="prejoin-actions">
           <button
             className="btn btn-primary btn-lg prejoin-join-btn"

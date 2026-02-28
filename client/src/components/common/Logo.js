@@ -35,7 +35,6 @@ const Logo = ({ size = "default", onClick, style }) => {
               <stop offset="100%" stopColor="#60a5fa" />
             </linearGradient>
           </defs>
-          {/* Infinity loop — two rounded loops meeting at centre */}
           <path
             d="M32 20
                C32 14, 26 8, 18 8
@@ -60,7 +59,6 @@ const Logo = ({ size = "default", onClick, style }) => {
             strokeLinejoin="round"
             fill="none"
           />
-          {/* Heart at the infinity crossing point */}
           <path
             d="M32 16
                C30.5 13, 27 12.5, 27 15
@@ -69,7 +67,6 @@ const Logo = ({ size = "default", onClick, style }) => {
                C37 12.5, 33.5 13, 32 16Z"
             fill="#fff"
           />
-          {/* Two small person-dot accents in each loop */}
           <circle cx="16" cy="18" r="2.2" fill="#fff" opacity="0.7" />
           <circle cx="48" cy="18" r="2.2" fill="#fff" opacity="0.7" />
           <path

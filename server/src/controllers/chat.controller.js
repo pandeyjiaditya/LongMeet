@@ -1,6 +1,5 @@
 const Message = require("../models/ChatMessage.model");
 
-// Get chat history for a room (paginated)
 exports.getRoomMessages = async (req, res, next) => {
   try {
     const { roomId } = req.params;
@@ -26,7 +25,6 @@ exports.getRoomMessages = async (req, res, next) => {
   }
 };
 
-// Delete all messages in a room
 exports.clearRoomMessages = async (req, res, next) => {
   try {
     const { roomId } = req.params;

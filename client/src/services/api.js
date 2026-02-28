@@ -6,14 +6,12 @@ const api = axios.create({
   headers: { "Content-Type": "application/json" },
 });
 
-// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 globally — only redirect if not already on login/register
 api.interceptors.response.use(
   (res) => res,
   (err) => {

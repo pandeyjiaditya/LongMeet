@@ -1,10 +1,9 @@
 const { v4: uuidv4 } = require("uuid");
 const Room = require("../models/Room.model");
 
-// Create a new room
 exports.createRoom = async (req, res, next) => {
   try {
-    const roomId = uuidv4().slice(0, 8); // short readable room code
+    const roomId = uuidv4().slice(0, 8);
     const room = await Room.create({
       roomId,
     });
@@ -14,7 +13,6 @@ exports.createRoom = async (req, res, next) => {
   }
 };
 
-// Get room details by roomId
 exports.getRoom = async (req, res, next) => {
   try {
     const room = await Room.findOne({ roomId: req.params.roomId }).populate(
@@ -34,7 +32,6 @@ exports.getRoom = async (req, res, next) => {
   }
 };
 
-// Get all rooms
 exports.getActiveRooms = async (req, res, next) => {
   try {
     const rooms = await Room.find().sort({ createdAt: -1 });
@@ -45,7 +42,6 @@ exports.getActiveRooms = async (req, res, next) => {
   }
 };
 
-// Get rooms the current user participated in
 exports.getMyRooms = async (req, res, next) => {
   try {
     const rooms = await Room.find({
@@ -58,7 +54,6 @@ exports.getMyRooms = async (req, res, next) => {
   }
 };
 
-// Delete a room
 exports.closeRoom = async (req, res, next) => {
   try {
     const room = await Room.findOneAndDelete({ roomId: req.params.roomId });

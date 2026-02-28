@@ -6,15 +6,12 @@ const { initSocket } = require("./socket");
 
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
 connectDB();
 
-// Create HTTP server
 const server = http.createServer(app);
 
-// Initialize Socket.IO
 initSocket(server);
 
 server.listen(PORT, () => {
-  console.log(`🚀 LongMeet server running on port ${PORT}`);
+  console.log(`LongMeet server running on port ${PORT}`);
 });

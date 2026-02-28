@@ -10,7 +10,6 @@ const LoadingScreen = () => {
             fill="none"
             xmlns="http://www.w3.org/2000/svg"
           >
-            {/* Left infinity loop */}
             <path
               d="M32 20
                  C32 14, 26 8, 18 8
@@ -24,7 +23,6 @@ const LoadingScreen = () => {
               fill="none"
               className="splash-infinity-left"
             />
-            {/* Right infinity loop */}
             <path
               d="M32 20
                  C32 26, 38 32, 46 32
@@ -38,7 +36,6 @@ const LoadingScreen = () => {
               fill="none"
               className="splash-infinity-right"
             />
-            {/* Heart at crossing */}
             <path
               d="M32 16
                  C30.5 13, 27 12.5, 27 15
@@ -48,7 +45,6 @@ const LoadingScreen = () => {
               fill="url(#splashGrad)"
               className="splash-heart"
             />
-            {/* Person dots */}
             <circle cx="16" cy="18" r="2.2" fill="#f9a8d4" opacity="0.7" />
             <circle cx="48" cy="18" r="2.2" fill="#c084fc" opacity="0.7" />
             <path

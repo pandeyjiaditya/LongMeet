@@ -8,30 +8,28 @@ const connectDB = async () => {
       socketTimeoutMS: 45000,
     });
 
-    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
+    console.log(`MongoDB connected: ${conn.connection.host}`);
 
-    // Connection event listeners
     mongoose.connection.on("error", (err) => {
-      console.error(`❌ MongoDB runtime error: ${err.message}`);
+      console.error(`MongoDB runtime error: ${err.message}`);
     });
 
     mongoose.connection.on("disconnected", () => {
-      console.warn("⚠️  MongoDB disconnected. Attempting reconnect...");
+      console.warn("MongoDB disconnected. Attempting reconnect...");
     });
 
     mongoose.connection.on("reconnected", () => {
-      console.log("🔄 MongoDB reconnected");
+      console.log("MongoDB reconnected");
     });
   } catch (error) {
-    console.error(`❌ MongoDB connection error: ${error.message}`);
-    // Retry once after 5 seconds before giving up
-    console.log("🔄 Retrying MongoDB connection in 5s...");
+    console.error(`MongoDB connection error: ${error.message}`);
+    console.log("Retrying MongoDB connection in 5s...");
     await new Promise((r) => setTimeout(r, 5000));
     try {
       await mongoose.connect(process.env.MONGO_URI);
-      console.log("✅ MongoDB connected on retry");
+      console.log("MongoDB connected on retry");
     } catch (retryError) {
-      console.error(`❌ MongoDB retry failed: ${retryError.message}`);
+      console.error(`MongoDB retry failed: ${retryError.message}`);
       process.exit(1);
     }
   }

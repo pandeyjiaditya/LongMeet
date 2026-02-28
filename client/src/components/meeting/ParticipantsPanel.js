@@ -35,7 +35,6 @@ const ParticipantsPanel = ({
 
   const isUserHost = (userId) => userId === hostUserId;
 
-  // Sort: host first, then self, then alphabetical
   const sortedUsers = [...roomUsers]
     .sort((a, b) => {
       if (isUserHost(a.userId) && !isUserHost(b.userId)) return -1;

@@ -60,12 +60,10 @@ const Controls = ({
   const [layoutOpen, setLayoutOpen] = useState(false);
   const layoutRef = useRef(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     const handler = (e) => {
-      if (layoutRef.current && !layoutRef.current.contains(e.target)) {
+      if (layoutRef.current && !layoutRef.current.contains(e.target))
         setLayoutOpen(false);
-      }
     };
     if (layoutOpen) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -73,7 +71,6 @@ const Controls = ({
 
   return (
     <div className="controls-bar">
-      {/* Left: meeting info */}
       <div className="controls-left">
         <button
           className={`member-count ${isParticipantsPanelOpen ? "active" : ""}`}
@@ -90,7 +87,6 @@ const Controls = ({
         </button>
       </div>
 
-      {/* Center: main controls */}
       <div className="controls-center">
         <button
           onClick={onToggleAudio}
@@ -130,7 +126,6 @@ const Controls = ({
           </span>
         </button>
 
-        {/* Layout switcher */}
         <div className="layout-switcher-wrapper" ref={layoutRef}>
           <button
             onClick={() => setLayoutOpen((v) => !v)}
@@ -172,11 +167,7 @@ const Controls = ({
           )}
         </div>
 
-        <button
-          onClick={onToggleChat}
-          className={`control-btn ${false ? "active-panel" : ""}`}
-          title="Chat"
-        >
+        <button onClick={onToggleChat} className="control-btn" title="Chat">
           <span className="ctrl-icon">
             <MdChatBubble />
           </span>
@@ -190,8 +181,6 @@ const Controls = ({
             <MdMovie />
           </span>
         </button>
-
-        {/* Leave button inline like GMeet */}
         <button
           onClick={onLeave}
           className="control-btn leave-btn"
@@ -203,7 +192,6 @@ const Controls = ({
         </button>
       </div>
 
-      {/* Right: empty or future actions */}
       <div className="controls-right" />
     </div>
   );

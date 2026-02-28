@@ -1,6 +1,5 @@
 const User = require("../models/User.model");
 
-// Get user profile
 exports.getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.params.id);
@@ -14,7 +13,6 @@ exports.getProfile = async (req, res, next) => {
   }
 };
 
-// Update user profile
 exports.updateProfile = async (req, res, next) => {
   try {
     const { name, avatar, bio, phone } = req.body;
@@ -34,7 +32,6 @@ exports.updateProfile = async (req, res, next) => {
   }
 };
 
-// Change password
 exports.changePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -44,12 +41,10 @@ exports.changePassword = async (req, res, next) => {
         .json({ success: false, message: "Both passwords are required" });
     }
     if (newPassword.length < 6) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          message: "New password must be at least 6 characters",
-        });
+      return res.status(400).json({
+        success: false,
+        message: "New password must be at least 6 characters",
+      });
     }
 
     const user = await User.findById(req.user.id).select("+password");
@@ -59,7 +54,6 @@ exports.changePassword = async (req, res, next) => {
         .json({ success: false, message: "User not found" });
     }
 
-    // Google-only users may not have a real password
     if (user.googleId && !currentPassword) {
       user.password = newPassword;
       await user.save();

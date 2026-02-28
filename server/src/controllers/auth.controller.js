@@ -11,7 +11,6 @@ const googleClient = new OAuth2Client(
 const generateToken = (userId) =>
   jwt.sign({ id: userId }, jwtSecret, { expiresIn: jwtExpire });
 
-// Register
 exports.register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
@@ -31,7 +30,6 @@ exports.register = async (req, res, next) => {
   }
 };
 
-// Login
 exports.login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
@@ -50,7 +48,6 @@ exports.login = async (req, res, next) => {
   }
 };
 
-// Get current user
 exports.getMe = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
@@ -60,7 +57,6 @@ exports.getMe = async (req, res, next) => {
   }
 };
 
-// Google OAuth — verify ID token and create/find user
 exports.googleLogin = async (req, res, next) => {
   try {
     const { credential } = req.body;
@@ -78,10 +74,8 @@ exports.googleLogin = async (req, res, next) => {
     });
     const { email, name, picture, sub: googleId } = ticket.getPayload();
 
-    // Find existing user or create a new one
     let user = await User.findOne({ email });
     if (!user) {
-      // Create user with a random password (they'll only use Google login)
       const randomPassword =
         Math.random().toString(36).slice(-12) +
         Math.random().toString(36).slice(-12);
@@ -93,7 +87,6 @@ exports.googleLogin = async (req, res, next) => {
         googleId,
       });
     } else if (!user.googleId) {
-      // Link Google to existing account
       user.googleId = googleId;
       if (picture && !user.avatar) user.avatar = picture;
       await user.save();
@@ -107,7 +100,6 @@ exports.googleLogin = async (req, res, next) => {
   }
 };
 
-// Refresh token — issue a fresh token so active users never expire
 exports.refreshToken = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);

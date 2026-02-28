@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 
-const SYNC_INTERVAL = 3000; // ms — periodic heartbeat from controller
-const DRIFT_THRESHOLD = 1.5; // seconds — correct if drift is larger
+const SYNC_INTERVAL = 3000;
+const DRIFT_THRESHOLD = 1.5;
 
 const SyncVideoPlayer = ({
   roomId,
@@ -17,17 +17,14 @@ const SyncVideoPlayer = ({
   const [status, setStatus] = useState("");
   const ignoreEvents = useRef(false);
 
-  // Detect if this is an embeddable URL (YouTube embed, etc.) or a direct video
   const isEmbed =
     videoUrl.includes("youtube.com/embed") ||
     videoUrl.includes("player.vimeo.com");
   const isDirectVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(videoUrl);
 
-  // ─── Socket listeners for synced playback ────────────────────
   useEffect(() => {
     if (!socket || !videoUrl) return;
 
-    // Request current state from server when joining
     socket.emit("watch-party:request-sync", { roomId });
 
     const handleSync = (state) => {
@@ -79,7 +76,6 @@ const SyncVideoPlayer = ({
 
     const handleTimeUpdate = ({ currentTime, isPlaying }) => {
       if (!videoRef.current || isController) return;
-      // Correct drift for non-controllers
       const drift = Math.abs(videoRef.current.currentTime - currentTime);
       if (drift > DRIFT_THRESHOLD) {
         ignoreEvents.current = true;
@@ -88,7 +84,6 @@ const SyncVideoPlayer = ({
           ignoreEvents.current = false;
         }, 300);
       }
-      // Match play/pause state
       if (isPlaying && videoRef.current.paused) {
         ignoreEvents.current = true;
         videoRef.current.play().catch(() => {});
@@ -126,7 +121,6 @@ const SyncVideoPlayer = ({
     };
   }, [socket, videoUrl, roomId, onClose, isController]);
 
-  // ─── Controller periodically broadcasts their current time ───
   useEffect(() => {
     if (!isController || !socket || !videoRef.current) return;
     const interval = setInterval(() => {
@@ -140,7 +134,6 @@ const SyncVideoPlayer = ({
     return () => clearInterval(interval);
   }, [isController, socket, roomId]);
 
-  // ─── Local video event handlers (only controller emits) ──────
   const onPlay = useCallback(() => {
     if (ignoreEvents.current || !videoRef.current || !isController) return;
     socket?.emit("watch-party:play", {
@@ -168,7 +161,6 @@ const SyncVideoPlayer = ({
     });
   }, [socket, roomId, user, isController]);
 
-  // Clear status after 3s
   useEffect(() => {
     if (!status) return;
     const t = setTimeout(() => setStatus(""), 3000);
@@ -224,7 +216,6 @@ const SyncVideoPlayer = ({
             />
           )}
 
-          {/* Non-controller overlay for direct video — blocks native controls */}
           {isDirectVideo && !isController && (
             <div className="sync-player-locked-overlay">
               <span>🔒 {hostName || "Host"} is controlling playback</span>
