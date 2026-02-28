@@ -58,29 +58,27 @@ const WatchParty = ({
         <div className="watch-party-host-info">
           <span className="host-badge">🎮 Controller:</span>{" "}
           <strong>{isController ? "You" : watchPartyHost.userName}</strong>
-          {!isController && (
-            <button
-              onClick={handleRequestControl}
-              className="btn btn-outline request-control-btn"
-            >
-              Request Control
-            </button>
-          )}
         </div>
       )}
 
-      <form onSubmit={handleSetUrl} className="watch-party-form">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          placeholder="Paste video URL (YouTube, MP4, etc.)"
-          required
-        />
-        <button type="submit" className="btn btn-primary">
-          Share
-        </button>
-      </form>
+      {isController ? (
+        <form onSubmit={handleSetUrl} className="watch-party-form">
+          <input
+            type="url"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="Paste video URL (YouTube, MP4, etc.)"
+            required
+          />
+          <button type="submit" className="btn btn-primary">
+            Share
+          </button>
+        </form>
+      ) : (
+        <div className="watch-party-info">
+          <p>Only the host can share and control videos.</p>
+        </div>
+      )}
 
       <div className="watch-party-info">
         <p>Paste any video URL to watch together with everyone in this room.</p>
@@ -94,9 +92,11 @@ const WatchParty = ({
         </ul>
       </div>
 
-      <button onClick={handleStop} className="btn btn-outline stop-party-btn">
-        Stop Watch Party
-      </button>
+      {isController && (
+        <button onClick={handleStop} className="btn btn-outline stop-party-btn">
+          Stop Watch Party
+        </button>
+      )}
     </div>
   );
 };

@@ -350,20 +350,24 @@ const initSocket = (server) => {
     });
 
     socket.on("watch-party:set-url", ({ roomId, url, userName }) => {
+      const meetingHost = meetingHosts.get(roomId);
+      const controllerSocketId = meetingHost ? meetingHost.socketId : socket.id;
+      const controllerName = meetingHost ? meetingHost.userName : userName;
+
       watchParties.set(roomId, {
         url,
         isPlaying: false,
         currentTime: 0,
         lastUpdated: Date.now(),
         updatedBy: userName,
-        hostSocketId: socket.id,
-        hostName: userName,
+        hostSocketId: controllerSocketId,
+        hostName: controllerName,
       });
       io.to(roomId).emit("watch-party:url-changed", {
         url,
         userName,
-        hostSocketId: socket.id,
-        hostName: userName,
+        hostSocketId: controllerSocketId,
+        hostName: controllerName,
       });
     });
 
@@ -383,33 +387,30 @@ const initSocket = (server) => {
 
     socket.on("watch-party:play", ({ roomId, currentTime, userName }) => {
       const state = watchParties.get(roomId);
-      if (state) {
-        state.isPlaying = true;
-        state.currentTime = currentTime;
-        state.lastUpdated = Date.now();
-        state.updatedBy = userName;
-      }
+      if (!state || state.hostSocketId !== socket.id) return;
+      state.isPlaying = true;
+      state.currentTime = currentTime;
+      state.lastUpdated = Date.now();
+      state.updatedBy = userName;
       socket.to(roomId).emit("watch-party:play", { currentTime, userName });
     });
 
     socket.on("watch-party:pause", ({ roomId, currentTime, userName }) => {
       const state = watchParties.get(roomId);
-      if (state) {
-        state.isPlaying = false;
-        state.currentTime = currentTime;
-        state.lastUpdated = Date.now();
-        state.updatedBy = userName;
-      }
+      if (!state || state.hostSocketId !== socket.id) return;
+      state.isPlaying = false;
+      state.currentTime = currentTime;
+      state.lastUpdated = Date.now();
+      state.updatedBy = userName;
       socket.to(roomId).emit("watch-party:pause", { currentTime, userName });
     });
 
     socket.on("watch-party:seek", ({ roomId, currentTime, userName }) => {
       const state = watchParties.get(roomId);
-      if (state) {
-        state.currentTime = currentTime;
-        state.lastUpdated = Date.now();
-        state.updatedBy = userName;
-      }
+      if (!state || state.hostSocketId !== socket.id) return;
+      state.currentTime = currentTime;
+      state.lastUpdated = Date.now();
+      state.updatedBy = userName;
       socket.to(roomId).emit("watch-party:seek", { currentTime, userName });
     });
 
@@ -417,11 +418,10 @@ const initSocket = (server) => {
       "watch-party:time-update",
       ({ roomId, currentTime, isPlaying }) => {
         const state = watchParties.get(roomId);
-        if (state) {
-          state.currentTime = currentTime;
-          state.isPlaying = isPlaying;
-          state.lastUpdated = Date.now();
-        }
+        if (!state || state.hostSocketId !== socket.id) return;
+        state.currentTime = currentTime;
+        state.isPlaying = isPlaying;
+        state.lastUpdated = Date.now();
         socket
           .to(roomId)
           .emit("watch-party:time-update", { currentTime, isPlaying });

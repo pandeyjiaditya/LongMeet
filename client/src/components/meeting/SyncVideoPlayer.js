@@ -1,7 +1,35 @@
 import React, { useRef, useEffect, useState, useCallback } from "react";
 
-const SYNC_INTERVAL = 3000;
-const DRIFT_THRESHOLD = 1.5;
+const SYNC_INTERVAL = 2000;
+const DRIFT_THRESHOLD = 1.0;
+
+/* ── YouTube IFrame API loader ── */
+const loadYouTubeAPI = () =>
+  new Promise((resolve) => {
+    if (window.YT && window.YT.Player) return resolve();
+    if (document.querySelector('script[src*="youtube.com/iframe_api"]')) {
+      const id = setInterval(() => {
+        if (window.YT && window.YT.Player) {
+          clearInterval(id);
+          resolve();
+        }
+      }, 100);
+      return;
+    }
+    const tag = document.createElement("script");
+    tag.src = "https://www.youtube.com/iframe_api";
+    document.head.appendChild(tag);
+    window.onYouTubeIframeAPIReady = () => resolve();
+  });
+
+const getYouTubeVideoId = (url) => {
+  const m = url.match(
+    /(?:youtube\.com\/embed\/|youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
+  );
+  return m ? m[1] : null;
+};
+
+/* ────────────────────────────── */
 
 const SyncVideoPlayer = ({
   roomId,
@@ -13,29 +41,128 @@ const SyncVideoPlayer = ({
   hostName,
 }) => {
   const videoRef = useRef(null);
-  const iframeRef = useRef(null);
+  const ytPlayerRef = useRef(null);
+  const ytReady = useRef(false);
   const [status, setStatus] = useState("");
   const ignoreEvents = useRef(false);
+  const ytContainerId = useRef(`yt-wp-${roomId}-${Date.now()}`);
 
-  const isEmbed =
-    videoUrl.includes("youtube.com/embed") ||
-    videoUrl.includes("player.vimeo.com");
+  const youtubeVideoId = getYouTubeVideoId(videoUrl);
+  const isYouTube = !!youtubeVideoId;
   const isDirectVideo = /\.(mp4|webm|ogg|mov)(\?|$)/i.test(videoUrl);
 
+  /* ── Helper: abstract player operations ── */
+  const setPlayerTime = useCallback(
+    (t) => {
+      if (isYouTube && ytReady.current && ytPlayerRef.current) {
+        ytPlayerRef.current.seekTo(t, true);
+      } else if (videoRef.current) {
+        videoRef.current.currentTime = t;
+      }
+    },
+    [isYouTube],
+  );
+
+  const playPlayer = useCallback(() => {
+    if (isYouTube && ytReady.current && ytPlayerRef.current) {
+      ytPlayerRef.current.playVideo();
+    } else if (videoRef.current) {
+      videoRef.current.play().catch(() => {});
+    }
+  }, [isYouTube]);
+
+  const pausePlayer = useCallback(() => {
+    if (isYouTube && ytReady.current && ytPlayerRef.current) {
+      ytPlayerRef.current.pauseVideo();
+    } else if (videoRef.current) {
+      videoRef.current.pause();
+    }
+  }, [isYouTube]);
+
+  const getPlayerTime = useCallback(() => {
+    if (isYouTube && ytReady.current && ytPlayerRef.current)
+      return ytPlayerRef.current.getCurrentTime() || 0;
+    if (videoRef.current) return videoRef.current.currentTime || 0;
+    return 0;
+  }, [isYouTube]);
+
+  const isPlayerPaused = useCallback(() => {
+    if (isYouTube && ytReady.current && ytPlayerRef.current) {
+      const s = ytPlayerRef.current.getPlayerState();
+      return s !== window.YT.PlayerState.PLAYING;
+    }
+    if (videoRef.current) return videoRef.current.paused;
+    return true;
+  }, [isYouTube]);
+
+  /* ── YouTube Player setup (host gets controls, viewers don't) ── */
+  useEffect(() => {
+    if (!isYouTube) return;
+    let player = null;
+    let destroyed = false;
+
+    const init = async () => {
+      await loadYouTubeAPI();
+      if (destroyed) return;
+      player = new window.YT.Player(ytContainerId.current, {
+        videoId: youtubeVideoId,
+        playerVars: {
+          autoplay: 0,
+          controls: isController ? 1 : 0,
+          disablekb: isController ? 0 : 1,
+          modestbranding: 1,
+          rel: 0,
+        },
+        events: {
+          onReady: () => {
+            ytPlayerRef.current = player;
+            ytReady.current = true;
+            socket?.emit("watch-party:request-sync", { roomId });
+          },
+          onStateChange: (e) => {
+            if (!isController || ignoreEvents.current) return;
+            const ct = player.getCurrentTime();
+            if (e.data === window.YT.PlayerState.PLAYING) {
+              socket?.emit("watch-party:play", {
+                roomId,
+                currentTime: ct,
+                userName: user?.name,
+              });
+            } else if (e.data === window.YT.PlayerState.PAUSED) {
+              socket?.emit("watch-party:pause", {
+                roomId,
+                currentTime: ct,
+                userName: user?.name,
+              });
+            }
+          },
+        },
+      });
+    };
+    init();
+
+    return () => {
+      destroyed = true;
+      ytReady.current = false;
+      if (player && typeof player.destroy === "function") {
+        try {
+          player.destroy();
+        } catch (_) {}
+      }
+      ytPlayerRef.current = null;
+    };
+  }, [isYouTube, youtubeVideoId, isController, socket, roomId, user]);
+
+  /* ── Socket event handlers (shared for YT + direct video) ── */
   useEffect(() => {
     if (!socket || !videoUrl) return;
 
-    socket.emit("watch-party:request-sync", { roomId });
+    if (!isYouTube) socket.emit("watch-party:request-sync", { roomId });
 
     const handleSync = (state) => {
-      if (!videoRef.current) return;
       ignoreEvents.current = true;
-      videoRef.current.currentTime = state.currentTime || 0;
-      if (state.isPlaying) {
-        videoRef.current.play().catch(() => {});
-      } else {
-        videoRef.current.pause();
-      }
+      setPlayerTime(state.currentTime || 0);
+      state.isPlaying ? playPlayer() : pausePlayer();
       setTimeout(() => {
         ignoreEvents.current = false;
       }, 500);
@@ -43,10 +170,9 @@ const SyncVideoPlayer = ({
     };
 
     const handlePlay = ({ currentTime, userName }) => {
-      if (!videoRef.current) return;
       ignoreEvents.current = true;
-      videoRef.current.currentTime = currentTime;
-      videoRef.current.play().catch(() => {});
+      setPlayerTime(currentTime);
+      playPlayer();
       setTimeout(() => {
         ignoreEvents.current = false;
       }, 500);
@@ -54,10 +180,9 @@ const SyncVideoPlayer = ({
     };
 
     const handlePause = ({ currentTime, userName }) => {
-      if (!videoRef.current) return;
       ignoreEvents.current = true;
-      videoRef.current.currentTime = currentTime;
-      videoRef.current.pause();
+      setPlayerTime(currentTime);
+      pausePlayer();
       setTimeout(() => {
         ignoreEvents.current = false;
       }, 500);
@@ -65,9 +190,8 @@ const SyncVideoPlayer = ({
     };
 
     const handleSeek = ({ currentTime, userName }) => {
-      if (!videoRef.current) return;
       ignoreEvents.current = true;
-      videoRef.current.currentTime = currentTime;
+      setPlayerTime(currentTime);
       setTimeout(() => {
         ignoreEvents.current = false;
       }, 500);
@@ -75,24 +199,24 @@ const SyncVideoPlayer = ({
     };
 
     const handleTimeUpdate = ({ currentTime, isPlaying }) => {
-      if (!videoRef.current || isController) return;
-      const drift = Math.abs(videoRef.current.currentTime - currentTime);
+      if (isController) return;
+      const drift = Math.abs(getPlayerTime() - currentTime);
       if (drift > DRIFT_THRESHOLD) {
         ignoreEvents.current = true;
-        videoRef.current.currentTime = currentTime;
+        setPlayerTime(currentTime);
         setTimeout(() => {
           ignoreEvents.current = false;
         }, 300);
       }
-      if (isPlaying && videoRef.current.paused) {
+      if (isPlaying && isPlayerPaused()) {
         ignoreEvents.current = true;
-        videoRef.current.play().catch(() => {});
+        playPlayer();
         setTimeout(() => {
           ignoreEvents.current = false;
         }, 300);
-      } else if (!isPlaying && !videoRef.current.paused) {
+      } else if (!isPlaying && !isPlayerPaused()) {
         ignoreEvents.current = true;
-        videoRef.current.pause();
+        pausePlayer();
         setTimeout(() => {
           ignoreEvents.current = false;
         }, 300);
@@ -119,21 +243,34 @@ const SyncVideoPlayer = ({
       socket.off("watch-party:time-update", handleTimeUpdate);
       socket.off("watch-party:stopped", handleStopped);
     };
-  }, [socket, videoUrl, roomId, onClose, isController]);
+  }, [
+    socket,
+    videoUrl,
+    roomId,
+    onClose,
+    isController,
+    isYouTube,
+    setPlayerTime,
+    playPlayer,
+    pausePlayer,
+    getPlayerTime,
+    isPlayerPaused,
+  ]);
 
+  /* ── Periodic time-sync from controller ── */
   useEffect(() => {
-    if (!isController || !socket || !videoRef.current) return;
+    if (!isController || !socket) return;
     const interval = setInterval(() => {
-      if (!videoRef.current) return;
       socket.emit("watch-party:time-update", {
         roomId,
-        currentTime: videoRef.current.currentTime,
-        isPlaying: !videoRef.current.paused,
+        currentTime: getPlayerTime(),
+        isPlaying: !isPlayerPaused(),
       });
     }, SYNC_INTERVAL);
     return () => clearInterval(interval);
-  }, [isController, socket, roomId]);
+  }, [isController, socket, roomId, getPlayerTime, isPlayerPaused]);
 
+  /* ── Direct-video event handlers (host only) ── */
   const onPlay = useCallback(() => {
     if (ignoreEvents.current || !videoRef.current || !isController) return;
     socket?.emit("watch-party:play", {
@@ -161,6 +298,7 @@ const SyncVideoPlayer = ({
     });
   }, [socket, roomId, user, isController]);
 
+  /* ── Auto-clear status ── */
   useEffect(() => {
     if (!status) return;
     const t = setTimeout(() => setStatus(""), 3000);
@@ -177,7 +315,7 @@ const SyncVideoPlayer = ({
           <span className="sync-host-label">
             {isController
               ? "🎮 You control"
-              : `🎮 ${hostName || "Host"} controls`}
+              : `🔒 ${hostName || "Host"} controls`}
           </span>
           {status && <span className="sync-status">{status}</span>}
           <button onClick={onClose} className="close-btn">
@@ -187,39 +325,119 @@ const SyncVideoPlayer = ({
 
         <div className="sync-player-video" style={{ position: "relative" }}>
           {isDirectVideo ? (
-            <video
-              ref={videoRef}
-              src={videoUrl}
-              controls={isController}
-              onPlay={onPlay}
-              onPause={onPause}
-              onSeeked={onSeeked}
-              style={{ width: "100%", maxHeight: "70vh", background: "#000" }}
-            />
-          ) : isEmbed ? (
-            <iframe
-              ref={iframeRef}
-              src={videoUrl}
-              title="Watch Party"
-              allow="autoplay; fullscreen; picture-in-picture"
-              allowFullScreen
-              style={{ width: "100%", height: "70vh", border: "none" }}
-            />
+            <>
+              <video
+                ref={videoRef}
+                src={videoUrl}
+                controls={isController}
+                onPlay={onPlay}
+                onPause={onPause}
+                onSeeked={onSeeked}
+                style={{
+                  width: "100%",
+                  maxHeight: "70vh",
+                  background: "#000",
+                  pointerEvents: isController ? "auto" : "none",
+                }}
+              />
+              {!isController && (
+                <div className="sync-player-locked-overlay">
+                  <span>🔒 {hostName || "Host"} is controlling playback</span>
+                </div>
+              )}
+            </>
+          ) : isYouTube ? (
+            <>
+              <div
+                id={ytContainerId.current}
+                style={{ width: "100%", height: "70vh" }}
+              />
+              {!isController && (
+                <div
+                  className="sync-player-locked-overlay"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: "auto",
+                    background: "transparent",
+                    cursor: "not-allowed",
+                    zIndex: 10,
+                    pointerEvents: "all",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      bottom: "16px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(0,0,0,0.75)",
+                      color: "#fff",
+                      padding: "8px 18px",
+                      borderRadius: "8px",
+                      fontSize: "0.85rem",
+                      pointerEvents: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    🔒 {hostName || "Host"} is controlling playback
+                  </span>
+                </div>
+              )}
+            </>
           ) : (
-            <iframe
-              ref={iframeRef}
-              src={videoUrl}
-              title="Watch Party"
-              allow="autoplay; fullscreen"
-              allowFullScreen
-              style={{ width: "100%", height: "70vh", border: "none" }}
-            />
-          )}
-
-          {isDirectVideo && !isController && (
-            <div className="sync-player-locked-overlay">
-              <span>🔒 {hostName || "Host"} is controlling playback</span>
-            </div>
+            <>
+              <iframe
+                src={videoUrl}
+                title="Watch Party"
+                allow="autoplay; fullscreen; picture-in-picture"
+                allowFullScreen
+                style={{
+                  width: "100%",
+                  height: "70vh",
+                  border: "none",
+                  pointerEvents: isController ? "auto" : "none",
+                }}
+              />
+              {!isController && (
+                <div
+                  className="sync-player-locked-overlay"
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    height: "auto",
+                    background: "transparent",
+                    cursor: "not-allowed",
+                    zIndex: 10,
+                    pointerEvents: "all",
+                  }}
+                >
+                  <span
+                    style={{
+                      position: "absolute",
+                      bottom: "16px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "rgba(0,0,0,0.75)",
+                      color: "#fff",
+                      padding: "8px 18px",
+                      borderRadius: "8px",
+                      fontSize: "0.85rem",
+                      pointerEvents: "none",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    🔒 {hostName || "Host"} is controlling playback
+                  </span>
+                </div>
+              )}
+            </>
           )}
         </div>
 

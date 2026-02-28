@@ -1232,7 +1232,7 @@ const Meeting = () => {
         isOpen={isWatchPartyOpen}
         onClose={() => setIsWatchPartyOpen(false)}
         watchPartyHost={watchPartyHost}
-        isController={!watchPartyHost || watchPartyHost.socketId === socket?.id}
+        isController={isHost}
       />
       {watchPartyUrl && (
         <SyncVideoPlayer
@@ -1241,9 +1241,7 @@ const Meeting = () => {
           user={user}
           videoUrl={watchPartyUrl}
           onClose={() => setWatchPartyUrl(null)}
-          isController={
-            !watchPartyHost || watchPartyHost.socketId === socket?.id
-          }
+          isController={isHost}
           hostName={watchPartyHost?.userName}
         />
       )}
