@@ -116,14 +116,16 @@ const Meeting = () => {
         return peersRef.current[remoteSocketId];
 
       const pc = new RTCPeerConnection(ICE_SERVERS);
-      // Track negotiation state to avoid glare
+      // Track whether initial negotiation is done to gate onnegotiationneeded
+      pc._initialNegotiationDone = false;
       pc._makingOffer = false;
-      pc._isInitiator = isInitiator;
 
       const stream = screenStreamRef.current || localStreamRef.current;
       if (stream) {
         stream.getTracks().forEach((track) => {
-          pc.addTrack(track, stream);
+          if (track.readyState === "live") {
+            pc.addTrack(track, stream);
+          }
         });
       }
 
@@ -151,6 +153,12 @@ const Meeting = () => {
 
       pc.oniceconnectionstatechange = () => {
         if (
+          pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed"
+        ) {
+          pc._initialNegotiationDone = true;
+        }
+        if (
           pc.iceConnectionState === "disconnected" ||
           pc.iceConnectionState === "failed"
         ) {
@@ -158,14 +166,17 @@ const Meeting = () => {
         }
       };
 
+      // Only used for renegotiation (e.g. toggling video on after joining without it)
       pc.onnegotiationneeded = async () => {
+        if (!pc._initialNegotiationDone) return;
         try {
           pc._makingOffer = true;
           const offer = await pc.createOffer();
           if (pc.signalingState !== "stable") return;
           await pc.setLocalDescription(offer);
           socket?.emit("offer", { to: remoteSocketId, offer });
-        } catch {
+        } catch (err) {
+          console.error("Renegotiation failed:", err);
         } finally {
           pc._makingOffer = false;
         }
@@ -294,12 +305,18 @@ const Meeting = () => {
 
     if (!preJoinAudio) {
       const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-      if (audioTrack) audioTrack.stop();
+      if (audioTrack) {
+        audioTrack.stop();
+        localStreamRef.current?.removeTrack(audioTrack);
+      }
       setAudioEnabled(false);
     }
     if (!preJoinVideo) {
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (videoTrack) videoTrack.stop();
+      if (videoTrack) {
+        videoTrack.stop();
+        localStreamRef.current?.removeTrack(videoTrack);
+      }
       setVideoEnabled(false);
     }
 
@@ -381,12 +398,7 @@ const Meeting = () => {
           },
         }));
         // onnegotiationneeded fires automatically after addTrack
-        createPeerConnection(
-          u.socketId,
-          u.userName,
-          true,
-          u.avatar || "",
-        );
+        createPeerConnection(u.socketId, u.userName, true, u.avatar || "");
       });
     });
 
@@ -420,25 +432,27 @@ const Meeting = () => {
 
       const pc = createPeerConnection(from, userName, false, peerAvatar);
 
-      // Perfect negotiation: handle incoming offer even during own negotiation
-      const offerCollision = pc._makingOffer || pc.signalingState !== "stable";
-      const isPolite = !pc._isInitiator;
-
-      if (offerCollision && !isPolite) return; // impolite peer ignores colliding offer
+      // Handle renegotiation collision
+      if (pc.signalingState !== "stable") {
+        // If we're already in the middle of an offer, rollback for renegotiation
+        if (pc._initialNegotiationDone) {
+          try {
+            await pc.setLocalDescription({ type: "rollback" });
+          } catch {}
+        } else {
+          // During initial setup, ignore colliding offers
+          return;
+        }
+      }
 
       try {
-        if (offerCollision) {
-          await Promise.all([
-            pc.setLocalDescription({ type: "rollback" }),
-            pc.setRemoteDescription(new RTCSessionDescription(offer)),
-          ]);
-        } else {
-          await pc.setRemoteDescription(new RTCSessionDescription(offer));
-        }
+        await pc.setRemoteDescription(new RTCSessionDescription(offer));
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         socket.emit("answer", { to: from, answer });
-      } catch {}
+      } catch (err) {
+        console.error("Failed to handle offer from", from, err);
+      }
     });
 
     socket.on("answer", async ({ from, answer }) => {
@@ -446,7 +460,9 @@ const Meeting = () => {
       if (pc) {
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(answer));
-        } catch {}
+        } catch (err) {
+          console.error("Failed to set answer from", from, err);
+        }
       }
     });
 
@@ -455,7 +471,9 @@ const Meeting = () => {
       if (pc) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch {}
+        } catch (err) {
+          console.error("Failed to add ICE candidate from", from, err);
+        }
       }
     });
 
@@ -619,7 +637,10 @@ const Meeting = () => {
   const toggleAudio = useCallback(async () => {
     if (audioEnabled) {
       const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-      if (audioTrack) audioTrack.stop();
+      if (audioTrack) {
+        audioTrack.stop();
+        localStreamRef.current?.removeTrack(audioTrack);
+      }
       setAudioEnabled(false);
       socket?.emit("toggle-media", {
         roomId: meetingId,
@@ -637,7 +658,20 @@ const Meeting = () => {
         if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
         localStreamRef.current?.addTrack(newAudioTrack);
         Object.values(peersRef.current).forEach((pc) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+          const sender = pc
+            .getSenders()
+            .find(
+              (s) =>
+                s.track?.kind === "audio" ||
+                pc
+                  .getTransceivers()
+                  .find(
+                    (t) =>
+                      t.sender === s &&
+                      t.mid !== null &&
+                      t.receiver?.track?.kind === "audio",
+                  ),
+            );
           if (sender) {
             sender.replaceTrack(newAudioTrack).catch(console.error);
           } else {
@@ -681,7 +715,10 @@ const Meeting = () => {
 
     if (videoEnabled) {
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
-      if (videoTrack) videoTrack.stop();
+      if (videoTrack) {
+        videoTrack.stop();
+        localStreamRef.current?.removeTrack(videoTrack);
+      }
       if (localVideoRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
@@ -702,7 +739,20 @@ const Meeting = () => {
         if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
         localStreamRef.current?.addTrack(newVideoTrack);
         Object.values(peersRef.current).forEach((pc) => {
-          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          const sender = pc
+            .getSenders()
+            .find(
+              (s) =>
+                s.track?.kind === "video" ||
+                pc
+                  .getTransceivers()
+                  .find(
+                    (t) =>
+                      t.sender === s &&
+                      t.mid !== null &&
+                      t.receiver?.track?.kind === "video",
+                  ),
+            );
           if (sender) {
             sender.replaceTrack(newVideoTrack).catch(console.error);
           } else {
