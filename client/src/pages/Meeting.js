@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import api from "../services/api";
 import VideoPlayer from "../components/meeting/VideoPlayer";
 import Controls from "../components/meeting/Controls";
 import ChatPanel from "../components/meeting/ChatPanel";
@@ -56,6 +57,8 @@ const Meeting = () => {
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const chatHistoryLoadedRef = useRef(false);
 
   const localVideoRef = useRef(null);
   const localStreamRef = useRef(null);
@@ -310,6 +313,24 @@ const Meeting = () => {
       console.log(`User ${userId} stopped screen sharing`);
     });
 
+    // ── Chat messages ────────────────────────────────────────────
+    socket.on("chat-message", (msg) => {
+      setChatMessages((prev) => [...prev, msg]);
+    });
+
+    // Load chat history from API on first connect
+    if (!chatHistoryLoadedRef.current) {
+      chatHistoryLoadedRef.current = true;
+      api
+        .get(`/chat/${meetingId}/messages`)
+        .then((res) => {
+          if (res.data?.messages?.length) {
+            setChatMessages(res.data.messages);
+          }
+        })
+        .catch((err) => console.error("Failed to load chat history:", err));
+    }
+
     // ── Watch party events ──────────────────────────────────────
     socket.on("watch-party:url-changed", ({ url }) => {
       setWatchPartyUrl(url);
@@ -332,6 +353,7 @@ const Meeting = () => {
       socket.off("user-toggle-media");
       socket.off("screen-share-started");
       socket.off("screen-share-stopped");
+      socket.off("chat-message");
       socket.off("watch-party:url-changed");
       socket.off("watch-party:stopped");
     };
@@ -575,7 +597,13 @@ const Meeting = () => {
         onToggleWatchParty={() => setIsWatchPartyOpen(!isWatchPartyOpen)}
       />
       {isChatOpen && (
-        <ChatPanel meetingId={meetingId} socket={socket} user={user} />
+        <ChatPanel
+          meetingId={meetingId}
+          socket={socket}
+          user={user}
+          messages={chatMessages}
+          onClose={() => setIsChatOpen(false)}
+        />
       )}
       <WatchParty
         roomId={meetingId}

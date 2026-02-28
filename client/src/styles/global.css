@@ -337,9 +337,41 @@ a:hover {
   border-left: 1px solid #333;
   z-index: 10;
 }
-.chat-panel h3 {
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 16px;
   border-bottom: 1px solid #333;
+}
+.chat-header h3 {
+  margin: 0;
+}
+.chat-close-btn {
+  background: none;
+  border: none;
+  color: #e0e0e0;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background 0.2s;
+  line-height: 1;
+}
+.chat-close-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+.chat-panel h3 {
+  padding: 0;
+  border-bottom: none;
+}
+.chat-message-self strong {
+  color: #6c63ff;
+}
+.chat-message-system {
+  font-style: italic;
+  opacity: 0.7;
+  font-size: 0.85rem;
 }
 .chat-messages {
   flex: 1;

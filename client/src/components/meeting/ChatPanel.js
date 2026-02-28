@@ -1,19 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 
-const ChatPanel = ({ meetingId, socket, user }) => {
-  const [messages, setMessages] = useState([]);
+const ChatPanel = ({ meetingId, socket, user, messages = [], onClose }) => {
   const [text, setText] = useState("");
   const bottomRef = useRef(null);
-
-  useEffect(() => {
-    if (!socket) return;
-
-    socket.on("chat-message", (msg) => {
-      setMessages((prev) => [...prev, msg]);
-    });
-
-    return () => socket.off("chat-message");
-  }, [socket]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -34,11 +23,19 @@ const ChatPanel = ({ meetingId, socket, user }) => {
 
   return (
     <div className="chat-panel">
-      <h3>Chat</h3>
+      <div className="chat-header">
+        <h3>Chat</h3>
+        <button className="chat-close-btn" onClick={onClose} title="Close chat">
+          ✕
+        </button>
+      </div>
       <div className="chat-messages">
         {messages.map((msg, i) => (
-          <div key={i} className="chat-message">
-            <strong>{msg.userName}: </strong>
+          <div
+            key={i}
+            className={`chat-message ${msg.userId === user?._id ? "chat-message-self" : ""} ${msg.userName === "System" ? "chat-message-system" : ""}`}
+          >
+            <strong>{msg.userId === user?._id ? "You" : msg.userName}: </strong>
             <span>{msg.message}</span>
           </div>
         ))}
