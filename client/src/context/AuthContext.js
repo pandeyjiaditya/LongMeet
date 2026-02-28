@@ -107,12 +107,24 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const updateUser = (updatedUser) => {
+    dispatch({ type: "USER_LOADED", payload: updatedUser });
+  };
+
   const logout = () => dispatch({ type: "LOGOUT" });
   const clearError = () => dispatch({ type: "CLEAR_ERROR" });
 
   return (
     <AuthContext.Provider
-      value={{ ...state, login, register, googleLogin, logout, clearError }}
+      value={{
+        ...state,
+        login,
+        register,
+        googleLogin,
+        updateUser,
+        logout,
+        clearError,
+      }}
     >
       {children}
     </AuthContext.Provider>

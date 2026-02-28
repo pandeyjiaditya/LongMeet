@@ -11,10 +11,14 @@ const chatRoutes = require("./routes/chat.routes");
 const app = express();
 
 // Build allowed origins (handle http/https and trailing slash mismatches)
-const rawClientUrl = (process.env.CLIENT_URL || "http://localhost:3000").replace(/\/+$/, "");
+const rawClientUrl = (
+  process.env.CLIENT_URL || "http://localhost:3000"
+).replace(/\/+$/, "");
 const allowedOrigins = [rawClientUrl];
-if (rawClientUrl.startsWith("https://")) allowedOrigins.push(rawClientUrl.replace("https://", "http://"));
-if (rawClientUrl.startsWith("http://"))  allowedOrigins.push(rawClientUrl.replace("http://", "https://"));
+if (rawClientUrl.startsWith("https://"))
+  allowedOrigins.push(rawClientUrl.replace("https://", "http://"));
+if (rawClientUrl.startsWith("http://"))
+  allowedOrigins.push(rawClientUrl.replace("http://", "https://"));
 
 console.log("🌐 Express CORS allowed origins:", allowedOrigins);
 
@@ -25,7 +29,7 @@ app.use(
     credentials: true,
   }),
 );
-app.use(express.json());
+app.use(express.json({ limit: "5mb" }));
 app.use(morgan("dev"));
 
 // Health check

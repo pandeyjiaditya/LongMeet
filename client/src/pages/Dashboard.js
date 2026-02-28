@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { createMeeting } from "../services/meeting.service";
 
@@ -28,6 +28,9 @@ const Dashboard = () => {
         <h1 className="logo">LongMeet</h1>
         <div className="nav-links">
           <span>Hi, {user?.name}</span>
+          <Link to="/profile" className="btn btn-outline btn-sm">
+            Profile
+          </Link>
           <button onClick={logout} className="btn btn-outline">
             Logout
           </button>

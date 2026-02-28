@@ -14,6 +14,8 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true, minlength: 6 },
     avatar: { type: String, default: "" },
     googleId: { type: String, default: null },
+    bio: { type: String, default: "", maxlength: 200 },
+    phone: { type: String, default: "", trim: true },
   },
   { timestamps: true },
 );
