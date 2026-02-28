@@ -2175,6 +2175,45 @@ a:hover {
   }
 }
 
+.chat-notification-toast {
+  position: fixed;
+  bottom: 100px;
+  right: 24px;
+  background: #202035;
+  border: 1px solid rgba(244, 114, 182, 0.3);
+  border-left: 4px solid #f472b6;
+  color: #fff;
+  padding: 12px 18px;
+  border-radius: 12px;
+  max-width: 320px;
+  z-index: 3000;
+  cursor: pointer;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  animation: toastSlideIn 0.3s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.chat-notification-toast strong {
+  font-size: 0.82rem;
+  color: #f472b6;
+}
+.chat-notification-toast span {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+@keyframes toastSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
 /* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Watch Party Host Info Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 .watch-party-host-info {
   display: flex;

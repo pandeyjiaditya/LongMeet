@@ -62,6 +62,8 @@ const Meeting = () => {
   const [screenSharing, setScreenSharing] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const chatHistoryLoadedRef = useRef(false);
+  const hasJoinedRef = useRef(false);
+  const [chatNotification, setChatNotification] = useState(null);
 
   // Remote media state: { [socketId]: { audioEnabled: bool, videoEnabled: bool } }
   const [remoteMediaState, setRemoteMediaState] = useState({});
@@ -319,13 +321,10 @@ const Meeting = () => {
       setVideoEnabled(false);
     }
 
-    // Wait until socket is actually connected before joining
     const joinOrRequest = () => {
-      console.log(
-        `🚪 Emitting join for ${meetingId}, socket connected: ${socket.connected}, isHost: ${isHost}`,
-      );
+      if (hasJoinedRef.current) return;
+      hasJoinedRef.current = true;
       if (isHost) {
-        // Host joins directly
         socket.emit("join-room", {
           roomId: meetingId,
           userId: user?._id,
@@ -335,7 +334,6 @@ const Meeting = () => {
         });
         setAdmitted(true);
       } else {
-        // Non-host: send a join request and wait for approval
         socket.emit("join-request", {
           roomId: meetingId,
           userId: user?._id,
@@ -349,7 +347,6 @@ const Meeting = () => {
     if (socket.connected) {
       joinOrRequest();
     } else {
-      console.log("⏳ Socket not connected yet, waiting...");
       socket.once("connect", joinOrRequest);
     }
 
@@ -536,9 +533,11 @@ const Meeting = () => {
       setControlNotice(`Your ${type} control request was denied`);
     });
 
-    // ── Chat messages ────────────────────────────────────────────
     socket.on("chat-message", (msg) => {
       setChatMessages((prev) => [...prev, msg]);
+      if (msg.userName !== "System" && msg.userId !== user?._id) {
+        setChatNotification({ userName: msg.userName, message: msg.message });
+      }
     });
 
     // Load chat history from API on first connect
@@ -600,7 +599,6 @@ const Meeting = () => {
     hostCheckDone,
     readyToJoin,
     isHost,
-    admitted,
     createPeerConnection,
     cleanupPeer,
   ]);
@@ -940,12 +938,17 @@ const Meeting = () => {
     navigate("/dashboard");
   };
 
-  // Auto-dismiss control notice
   useEffect(() => {
     if (!controlNotice) return;
     const t = setTimeout(() => setControlNotice(""), 4000);
     return () => clearTimeout(t);
   }, [controlNotice]);
+
+  useEffect(() => {
+    if (!chatNotification) return;
+    const t = setTimeout(() => setChatNotification(null), 4000);
+    return () => clearTimeout(t);
+  }, [chatNotification]);
 
   // ─── Host: accept / reject / remove helpers ───────────────────
   const handleAcceptRequest = (targetSocketId) => {
@@ -1450,6 +1453,23 @@ const Meeting = () => {
       {controlNotice && (
         <div className="control-notice" onClick={() => setControlNotice("")}>
           {controlNotice}
+        </div>
+      )}
+
+      {chatNotification && !isChatOpen && (
+        <div
+          className="chat-notification-toast"
+          onClick={() => {
+            setIsChatOpen(true);
+            setChatNotification(null);
+          }}
+        >
+          <strong>{chatNotification.userName}</strong>
+          <span>
+            {chatNotification.message.length > 60
+              ? chatNotification.message.slice(0, 60) + "..."
+              : chatNotification.message}
+          </span>
         </div>
       )}
 
