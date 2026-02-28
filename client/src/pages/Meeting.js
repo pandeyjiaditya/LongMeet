@@ -1117,100 +1117,133 @@ const Meeting = () => {
         </div>
       </div>
 
-      <div className={`video-area ${pinnedPeer ? "has-pinned" : ""}`}>
-        {/* Pinned (spotlight) view */}
-        {pinnedEntry && (
-          <div className="pinned-video-section">
-            <VideoPlayer
-              stream={pinnedEntry[1].stream}
-              userName={pinnedEntry[1].userName}
-              avatar={pinnedEntry[1].avatar}
-              videoEnabled={
-                remoteMediaState[pinnedEntry[0]]?.videoEnabled ?? true
-              }
-              audioEnabled={
-                remoteMediaState[pinnedEntry[0]]?.audioEnabled ?? true
-              }
-              isPinned={true}
-              onPin={() => setPinnedPeer(null)}
-              isHost={
-                roomUsers.find((u) => u.socketId === pinnedEntry[0])?.userId ===
-                hostUserId
-              }
-            />
-            {isHost && (
-              <button
-                className="remove-participant-btn"
-                title={`Remove ${pinnedEntry[1].userName}`}
-                onClick={() => handleRemoveParticipant(pinnedEntry[0])}
-              >
-                ✕
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Screen share PiP – shows your camera while sharing screen */}
-        {screenSharing && videoEnabled && (
-          <div className="screen-share-pip">
-            <video
-              ref={(el) => {
-                localCameraPreviewRef.current = el;
-                if (el && localStreamRef.current) {
-                  el.srcObject = localStreamRef.current;
-                }
-              }}
-              autoPlay
-              muted
-              playsInline
-            />
-            <span className="pip-label">You</span>
-          </div>
-        )}
-
-        {/* Grid of unpinned + local */}
-        <div className={`video-grid ${gridCountClass}`}>
-          <VideoPlayer
-            stream={localStreamRef.current}
-            muted
-            userName={
-              screenSharing ? "You (Screen)" : isHost ? "You (Host)" : "You"
-            }
-            videoRef={localVideoRef}
-            isScreenShare={screenSharing}
-            isLocal={true}
-            avatar={user?.avatar || ""}
-            videoEnabled={videoEnabled}
-            audioEnabled={audioEnabled}
-            isHost={isHost}
-          />
-          {unpinnedEntries.map(([socketId, peer]) => (
-            <div key={socketId} className="video-wrapper-outer">
+      <div
+        className={`meeting-body${isChatOpen ? " chat-open" : ""}${isParticipantsPanelOpen ? " participants-open" : ""}`}
+      >
+        <div className={`video-area ${pinnedPeer ? "has-pinned" : ""}`}>
+          {/* Pinned (spotlight) view */}
+          {pinnedEntry && (
+            <div className="pinned-video-section">
               <VideoPlayer
-                stream={peer.stream}
-                userName={peer.userName}
-                avatar={peer.avatar}
-                videoEnabled={remoteMediaState[socketId]?.videoEnabled ?? true}
-                audioEnabled={remoteMediaState[socketId]?.audioEnabled ?? true}
-                isPinned={false}
-                onPin={() => setPinnedPeer(socketId)}
+                stream={pinnedEntry[1].stream}
+                userName={pinnedEntry[1].userName}
+                avatar={pinnedEntry[1].avatar}
+                videoEnabled={
+                  remoteMediaState[pinnedEntry[0]]?.videoEnabled ?? true
+                }
+                audioEnabled={
+                  remoteMediaState[pinnedEntry[0]]?.audioEnabled ?? true
+                }
+                isPinned={true}
+                onPin={() => setPinnedPeer(null)}
                 isHost={
-                  roomUsers.find((u) => u.socketId === socketId)?.userId ===
-                  hostUserId
+                  roomUsers.find((u) => u.socketId === pinnedEntry[0])
+                    ?.userId === hostUserId
                 }
               />
               {isHost && (
                 <button
                   className="remove-participant-btn"
-                  title={`Remove ${peer.userName}`}
-                  onClick={() => handleRemoveParticipant(socketId)}
+                  title={`Remove ${pinnedEntry[1].userName}`}
+                  onClick={() => handleRemoveParticipant(pinnedEntry[0])}
                 >
                   ✕
                 </button>
               )}
             </div>
-          ))}
+          )}
+
+          {/* Screen share PiP – shows your camera while sharing screen */}
+          {screenSharing && videoEnabled && (
+            <div className="screen-share-pip">
+              <video
+                ref={(el) => {
+                  localCameraPreviewRef.current = el;
+                  if (el && localStreamRef.current) {
+                    el.srcObject = localStreamRef.current;
+                  }
+                }}
+                autoPlay
+                muted
+                playsInline
+              />
+              <span className="pip-label">You</span>
+            </div>
+          )}
+
+          {/* Grid of unpinned + local */}
+          <div className={`video-grid ${gridCountClass}`}>
+            <VideoPlayer
+              stream={localStreamRef.current}
+              muted
+              userName={
+                screenSharing ? "You (Screen)" : isHost ? "You (Host)" : "You"
+              }
+              videoRef={localVideoRef}
+              isScreenShare={screenSharing}
+              isLocal={true}
+              avatar={user?.avatar || ""}
+              videoEnabled={videoEnabled}
+              audioEnabled={audioEnabled}
+              isHost={isHost}
+            />
+            {unpinnedEntries.map(([socketId, peer]) => (
+              <div key={socketId} className="video-wrapper-outer">
+                <VideoPlayer
+                  stream={peer.stream}
+                  userName={peer.userName}
+                  avatar={peer.avatar}
+                  videoEnabled={
+                    remoteMediaState[socketId]?.videoEnabled ?? true
+                  }
+                  audioEnabled={
+                    remoteMediaState[socketId]?.audioEnabled ?? true
+                  }
+                  isPinned={false}
+                  onPin={() => setPinnedPeer(socketId)}
+                  isHost={
+                    roomUsers.find((u) => u.socketId === socketId)?.userId ===
+                    hostUserId
+                  }
+                />
+                {isHost && (
+                  <button
+                    className="remove-participant-btn"
+                    title={`Remove ${peer.userName}`}
+                    onClick={() => handleRemoveParticipant(socketId)}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+
+        {isChatOpen && (
+          <ChatPanel
+            meetingId={meetingId}
+            socket={socket}
+            user={user}
+            messages={chatMessages}
+            onClose={() => setIsChatOpen(false)}
+          />
+        )}
+        {isParticipantsPanelOpen && (
+          <ParticipantsPanel
+            roomUsers={roomUsers}
+            peers={peers}
+            remoteMediaState={remoteMediaState}
+            localUser={user}
+            localAudioEnabled={audioEnabled}
+            localVideoEnabled={videoEnabled}
+            isHost={isHost}
+            hostUserId={hostUserId}
+            socketId={socket?.id}
+            onRemoveParticipant={handleRemoveParticipant}
+            onClose={() => setIsParticipantsPanelOpen(false)}
+          />
+        )}
       </div>
 
       <Controls
@@ -1232,30 +1265,6 @@ const Meeting = () => {
         }
         isParticipantsPanelOpen={isParticipantsPanelOpen}
       />
-      {isChatOpen && (
-        <ChatPanel
-          meetingId={meetingId}
-          socket={socket}
-          user={user}
-          messages={chatMessages}
-          onClose={() => setIsChatOpen(false)}
-        />
-      )}
-      {isParticipantsPanelOpen && (
-        <ParticipantsPanel
-          roomUsers={roomUsers}
-          peers={peers}
-          remoteMediaState={remoteMediaState}
-          localUser={user}
-          localAudioEnabled={audioEnabled}
-          localVideoEnabled={videoEnabled}
-          isHost={isHost}
-          hostUserId={hostUserId}
-          socketId={socket?.id}
-          onRemoveParticipant={handleRemoveParticipant}
-          onClose={() => setIsParticipantsPanelOpen(false)}
-        />
-      )}
       <WatchParty
         roomId={meetingId}
         socket={socket}
