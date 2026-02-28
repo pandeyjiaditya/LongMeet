@@ -14,6 +14,8 @@ services:
       - key: JWT_SECRET
         generateValue: true
       - key: JWT_EXPIRE
-        value: 7d
+        value: 30d
       - key: CLIENT_URL
+        sync: false
+      - key: GOOGLE_CLIENT_ID
         sync: false
