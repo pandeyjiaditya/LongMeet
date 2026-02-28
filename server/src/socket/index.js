@@ -428,6 +428,18 @@ const initSocket = (server) => {
       },
     );
 
+    socket.on("watch-party:fullscreen", ({ roomId, userName }) => {
+      const state = watchParties.get(roomId);
+      if (!state || state.hostSocketId !== socket.id) return;
+      socket.to(roomId).emit("watch-party:fullscreen", { userName });
+    });
+
+    socket.on("watch-party:exit-fullscreen", ({ roomId, userName }) => {
+      const state = watchParties.get(roomId);
+      if (!state || state.hostSocketId !== socket.id) return;
+      socket.to(roomId).emit("watch-party:exit-fullscreen", { userName });
+    });
+
     socket.on("watch-party:stop", ({ roomId, userName }) => {
       watchParties.delete(roomId);
       io.to(roomId).emit("watch-party:stopped", { userName });

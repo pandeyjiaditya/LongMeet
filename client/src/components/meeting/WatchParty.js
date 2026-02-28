@@ -8,6 +8,10 @@ const WatchParty = ({
   onClose,
   watchPartyHost,
   isController,
+  isHost,
+  watchPartyActive,
+  watchPartyDismissed,
+  onRejoin,
 }) => {
   const [url, setUrl] = useState("");
 
@@ -61,7 +65,17 @@ const WatchParty = ({
         </div>
       )}
 
-      {isController ? (
+      {/* Rejoin banner when member dismissed the player */}
+      {watchPartyActive && watchPartyDismissed && (
+        <div className="watch-party-rejoin-section">
+          <p>🎬 A Watch Party is currently active!</p>
+          <button onClick={onRejoin} className="btn btn-primary">
+            Rejoin Watch Party
+          </button>
+        </div>
+      )}
+
+      {isController || isHost ? (
         <form onSubmit={handleSetUrl} className="watch-party-form">
           <input
             type="url"
@@ -76,7 +90,15 @@ const WatchParty = ({
         </form>
       ) : (
         <div className="watch-party-info">
-          <p>Only the host can share and control videos.</p>
+          <p>Only the controller can share and control videos.</p>
+          {watchPartyActive && !isController && (
+            <button
+              onClick={handleRequestControl}
+              className="btn btn-outline request-control-btn"
+            >
+              🙋 Request Control
+            </button>
+          )}
         </div>
       )}
 
@@ -92,7 +114,7 @@ const WatchParty = ({
         </ul>
       </div>
 
-      {isController && (
+      {(isController || isHost) && watchPartyActive && (
         <button onClick={handleStop} className="btn btn-outline stop-party-btn">
           Stop Watch Party
         </button>

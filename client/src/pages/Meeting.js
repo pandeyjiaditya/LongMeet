@@ -52,6 +52,8 @@ const Meeting = () => {
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [isWatchPartyOpen, setIsWatchPartyOpen] = useState(false);
   const [watchPartyUrl, setWatchPartyUrl] = useState(null);
+  const [watchPartyDismissed, setWatchPartyDismissed] = useState(false);
+  const [watchPartyFullscreen, setWatchPartyFullscreen] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [videoEnabled, setVideoEnabled] = useState(true);
   const [screenSharing, setScreenSharing] = useState(false);
@@ -499,11 +501,22 @@ const Meeting = () => {
     socket.on("watch-party:url-changed", ({ url, hostSocketId, hostName }) => {
       setWatchPartyUrl(url);
       setWatchPartyHost({ socketId: hostSocketId, userName: hostName });
+      setWatchPartyDismissed(false);
     });
 
     socket.on("watch-party:stopped", () => {
       setWatchPartyUrl(null);
       setWatchPartyHost(null);
+      setWatchPartyDismissed(false);
+      setWatchPartyFullscreen(false);
+    });
+
+    socket.on("watch-party:fullscreen", () => {
+      setWatchPartyFullscreen(true);
+    });
+
+    socket.on("watch-party:exit-fullscreen", () => {
+      setWatchPartyFullscreen(false);
     });
 
     return () => {
@@ -527,6 +540,8 @@ const Meeting = () => {
       socket.off("chat-message");
       socket.off("watch-party:url-changed");
       socket.off("watch-party:stopped");
+      socket.off("watch-party:fullscreen");
+      socket.off("watch-party:exit-fullscreen");
       socket.off("join-request-received");
       socket.off("pending-requests");
       socket.off("join-request-accepted");
@@ -1251,18 +1266,45 @@ const Meeting = () => {
         isOpen={isWatchPartyOpen}
         onClose={() => setIsWatchPartyOpen(false)}
         watchPartyHost={watchPartyHost}
-        isController={isHost}
+        isController={watchPartyHost?.socketId === socket?.id}
+        isHost={isHost}
+        watchPartyActive={!!watchPartyUrl}
+        watchPartyDismissed={watchPartyDismissed}
+        onRejoin={() => setWatchPartyDismissed(false)}
       />
-      {watchPartyUrl && (
+      {watchPartyUrl && !watchPartyDismissed && (
         <SyncVideoPlayer
           roomId={meetingId}
           socket={socket}
           user={user}
           videoUrl={watchPartyUrl}
-          onClose={() => setWatchPartyUrl(null)}
-          isController={isHost}
+          onClose={() => {
+            const amController = watchPartyHost?.socketId === socket?.id;
+            if (amController) {
+              socket?.emit("watch-party:stop", {
+                roomId: meetingId,
+                userName: user?.name,
+              });
+            } else {
+              setWatchPartyDismissed(true);
+            }
+          }}
+          isController={watchPartyHost?.socketId === socket?.id}
           hostName={watchPartyHost?.userName}
+          isFullscreen={watchPartyFullscreen}
+          onFullscreenChange={(fs) => setWatchPartyFullscreen(fs)}
         />
+      )}
+      {watchPartyUrl && watchPartyDismissed && (
+        <div className="watch-party-rejoin-banner">
+          <span>🎬 Watch Party is active</span>
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setWatchPartyDismissed(false)}
+          >
+            Rejoin
+          </button>
+        </div>
       )}
 
       {controlRequest && (

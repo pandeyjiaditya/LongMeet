@@ -39,8 +39,11 @@ const SyncVideoPlayer = ({
   onClose,
   isController,
   hostName,
+  isFullscreen,
+  onFullscreenChange,
 }) => {
   const videoRef = useRef(null);
+  const overlayRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const ytReady = useRef(false);
   const [status, setStatus] = useState("");
@@ -305,10 +308,75 @@ const SyncVideoPlayer = ({
     return () => clearTimeout(t);
   }, [status]);
 
+  /* ── Fullscreen sync ── */
+  const toggleFullscreen = useCallback(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+    if (!document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {});
+      if (isController) {
+        socket?.emit("watch-party:fullscreen", {
+          roomId,
+          userName: user?.name,
+        });
+        onFullscreenChange?.(true);
+      }
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+      if (isController) {
+        socket?.emit("watch-party:exit-fullscreen", {
+          roomId,
+          userName: user?.name,
+        });
+        onFullscreenChange?.(false);
+      }
+    }
+  }, [isController, socket, roomId, user, onFullscreenChange]);
+
+  /* listen for native fullscreen exit (e.g. Esc key) */
+  useEffect(() => {
+    const handleFsChange = () => {
+      if (!document.fullscreenElement && isController) {
+        socket?.emit("watch-party:exit-fullscreen", {
+          roomId,
+          userName: user?.name,
+        });
+        onFullscreenChange?.(false);
+      }
+    };
+    document.addEventListener("fullscreenchange", handleFsChange);
+    return () =>
+      document.removeEventListener("fullscreenchange", handleFsChange);
+  }, [isController, socket, roomId, user, onFullscreenChange]);
+
+  /* remote fullscreen sync for non-controllers */
+  useEffect(() => {
+    if (isController) return;
+    const el = overlayRef.current;
+    if (!el) return;
+    if (isFullscreen && !document.fullscreenElement) {
+      el.requestFullscreen?.().catch(() => {});
+    } else if (!isFullscreen && document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  }, [isFullscreen, isController]);
+
+  const handleRequestControl = useCallback(() => {
+    socket?.emit("request-control", {
+      roomId,
+      type: "watch-party",
+      userName: user?.name,
+    });
+    setStatus("Control request sent...");
+  }, [socket, roomId, user]);
+
   if (!videoUrl) return null;
 
   return (
-    <div className="sync-player-overlay">
+    <div
+      className={`sync-player-overlay${isFullscreen ? " sync-fullscreen" : ""}`}
+      ref={overlayRef}
+    >
       <div className="sync-player-container">
         <div className="sync-player-header">
           <span>🎬 Watch Party</span>
@@ -318,9 +386,31 @@ const SyncVideoPlayer = ({
               : `🔒 ${hostName || "Host"} controls`}
           </span>
           {status && <span className="sync-status">{status}</span>}
-          <button onClick={onClose} className="close-btn">
-            ✕
-          </button>
+          <div className="sync-player-header-actions">
+            {!isController && (
+              <button
+                onClick={handleRequestControl}
+                className="btn btn-sm btn-outline"
+                title="Request Control"
+              >
+                🙋 Request Control
+              </button>
+            )}
+            <button
+              onClick={toggleFullscreen}
+              className="close-btn"
+              title="Toggle Fullscreen"
+            >
+              {document.fullscreenElement ? "✖" : "⛶"}
+            </button>
+            <button
+              onClick={onClose}
+              className="close-btn"
+              title={isController ? "Stop Watch Party" : "Leave Watch Party"}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
         <div className="sync-player-video" style={{ position: "relative" }}>
