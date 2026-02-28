@@ -2,6 +2,7 @@ import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import api from "../services/api";
+import Logo from "../components/common/Logo";
 
 const Profile = () => {
   const { user, updateUser, logout } = useAuth();
@@ -107,7 +108,11 @@ const Profile = () => {
         newPassword: passwords.newPassword,
       });
       setPwMessage({ text: res.data.message, type: "success" });
-      setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setPasswords({
+        currentPassword: "",
+        newPassword: "",
+        confirmPassword: "",
+      });
     } catch (err) {
       setPwMessage({
         text: err.response?.data?.message || "Failed to change password",
@@ -131,11 +136,15 @@ const Profile = () => {
   return (
     <div className="profile-container">
       <nav className="navbar">
-        <h1 className="logo" onClick={() => navigate("/dashboard")} style={{ cursor: "pointer" }}>
-          LongMeet
-        </h1>
+        <Logo
+          onClick={() => navigate("/dashboard")}
+          style={{ cursor: "pointer" }}
+        />
         <div className="nav-links">
-          <button onClick={() => navigate("/dashboard")} className="btn btn-outline btn-sm">
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="btn btn-outline btn-sm"
+          >
             Dashboard
           </button>
           <button onClick={logout} className="btn btn-outline">
@@ -216,11 +225,7 @@ const Profile = () => {
               />
             </label>
 
-            <button
-              type="submit"
-              className="btn btn-primary"
-              disabled={saving}
-            >
+            <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? "Saving..." : "Save Changes"}
             </button>
           </form>
@@ -240,7 +245,10 @@ const Profile = () => {
                 type="password"
                 value={passwords.currentPassword}
                 onChange={(e) =>
-                  setPasswords({ ...passwords, currentPassword: e.target.value })
+                  setPasswords({
+                    ...passwords,
+                    currentPassword: e.target.value,
+                  })
                 }
                 required
               />

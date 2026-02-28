@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Logo from "../components/common/Logo";
 
 const GOOGLE_CLIENT_ID =
   process.env.REACT_APP_GOOGLE_CLIENT_ID ||
@@ -12,7 +13,6 @@ const Login = () => {
   const googleBtnRef = useRef(null);
 
   useEffect(() => {
-    // Initialize Google Sign-In button once the GSI script is loaded
     const initGoogle = () => {
       if (window.google?.accounts?.id) {
         window.google.accounts.id.initialize({
@@ -29,7 +29,6 @@ const Login = () => {
       }
     };
 
-    // GSI script may not be ready yet — poll briefly
     if (window.google?.accounts?.id) {
       initGoogle();
     } else {
@@ -61,25 +60,35 @@ const Login = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Sign in to LongMeet</h2>
+        <div className="auth-logo">
+          <Logo />
+        </div>
+        <h2>Welcome back! 👋</h2>
+        <p className="auth-subtitle">Your friends are waiting for you</p>
         {error && <p className="error-text">{error}</p>}
         <form onSubmit={handleSubmit}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
-          />
+          <div className="input-group">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required
+            />
+            <span className="input-icon">✉</span>
+          </div>
+          <div className="input-group">
+            <input
+              type="password"
+              placeholder="Password"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+            />
+            <span className="input-icon">🔒</span>
+          </div>
           <button type="submit" className="btn btn-primary">
-            Login
+            Let's Go
           </button>
         </form>
 
@@ -90,7 +99,7 @@ const Login = () => {
         <div className="google-btn-wrapper" ref={googleBtnRef}></div>
 
         <p>
-          Don't have an account? <Link to="/register">Sign up</Link>
+          Don't have an account? <Link to="/register">Create one</Link>
         </p>
       </div>
     </div>

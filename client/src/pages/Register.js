@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Logo from "../components/common/Logo";
 
 const GOOGLE_CLIENT_ID =
   process.env.REACT_APP_GOOGLE_CLIENT_ID ||
@@ -59,33 +60,46 @@ const Register = () => {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <h2>Create your account</h2>
+        <div className="auth-logo">
+          <Logo />
+        </div>
+        <h2>Join the crew ✌️</h2>
+        <p className="auth-subtitle">Set up in seconds, hang out forever</p>
         {error && <p className="error-text">{error}</p>}
         <form onSubmit={handleSubmit}>
-          <input
-            type="text"
-            placeholder="Full Name"
-            value={form.name}
-            onChange={(e) => setForm({ ...form, name: e.target.value })}
-            required
-          />
-          <input
-            type="email"
-            placeholder="Email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            required
-          />
-          <input
-            type="password"
-            placeholder="Password (min 6 chars)"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            required
-            minLength={6}
-          />
+          <div className="input-group">
+            <input
+              type="text"
+              placeholder="Full Name"
+              value={form.name}
+              onChange={(e) => setForm({ ...form, name: e.target.value })}
+              required
+            />
+            <span className="input-icon">👤</span>
+          </div>
+          <div className="input-group">
+            <input
+              type="email"
+              placeholder="Email address"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+              required
+            />
+            <span className="input-icon">✉</span>
+          </div>
+          <div className="input-group">
+            <input
+              type="password"
+              placeholder="Password (min 6 chars)"
+              value={form.password}
+              onChange={(e) => setForm({ ...form, password: e.target.value })}
+              required
+              minLength={6}
+            />
+            <span className="input-icon">🔒</span>
+          </div>
           <button type="submit" className="btn btn-primary">
-            Sign Up
+            Let's Go
           </button>
         </form>
 
@@ -96,7 +110,7 @@ const Register = () => {
         <div className="google-btn-wrapper" ref={googleBtnRef}></div>
 
         <p>
-          Already have an account? <Link to="/login">Login</Link>
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
       </div>
     </div>

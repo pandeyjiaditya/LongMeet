@@ -1,26 +1,61 @@
 import React from "react";
 import { Link } from "react-router-dom";
+import Logo from "../components/common/Logo";
 
 const Home = () => {
   return (
     <div className="home-container">
       <nav className="navbar">
-        <h1 className="logo">LongMeet</h1>
+        <Logo />
         <div className="nav-links">
           <Link to="/login" className="btn btn-outline">
-            Login
+            Log In
           </Link>
           <Link to="/register" className="btn btn-primary">
-            Sign Up
+            Join Free
           </Link>
         </div>
       </nav>
       <main className="hero">
-        <h2>Video meetings for everyone</h2>
-        <p>Secure, high-quality video calls. Connect with anyone, anywhere.</p>
+        <div className="hero-badge">
+          <span className="hero-badge-dot" />✨ Watch parties, screen share &
+          more
+        </div>
+        <h2>
+          Hang out,{" "}
+          <span className="hero-gradient-text">no matter the distance</span>
+        </h2>
+        <p>
+          Video hangs, watch parties, and late-night chats with your favorite
+          people — no matter where they are. Always free.
+        </p>
         <Link to="/register" className="btn btn-primary btn-lg">
-          Get Started — It's Free
+          Start Hanging Out 🚀
         </Link>
+
+        <div className="hero-tiles">
+          <div className="hero-tile">
+            <span className="hero-tile-icon">📹</span>
+            <div>
+              <h4>Video Hangouts</h4>
+              <p>See your friends in crystal-clear quality</p>
+            </div>
+          </div>
+          <div className="hero-tile">
+            <span className="hero-tile-icon">🍿</span>
+            <div>
+              <h4>Movie Nights</h4>
+              <p>Watch movies & videos together in sync</p>
+            </div>
+          </div>
+          <div className="hero-tile">
+            <span className="hero-tile-icon">🎮</span>
+            <div>
+              <h4>Just Vibes</h4>
+              <p>Chat, share screens, and just hang out</p>
+            </div>
+          </div>
+        </div>
       </main>
     </div>
   );
