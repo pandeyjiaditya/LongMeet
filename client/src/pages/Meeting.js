@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useSocket } from "../context/SocketContext";
+import { MdContentCopy, MdCheck } from "react-icons/md";
 import api from "../services/api";
 import VideoPlayer from "../components/meeting/VideoPlayer";
 import Controls from "../components/meeting/Controls";
@@ -96,6 +97,7 @@ const Meeting = () => {
   const [readyToJoin, setReadyToJoin] = useState(false); // pre-join screen gate
   const [preJoinAudio, setPreJoinAudio] = useState(true);
   const [preJoinVideo, setPreJoinVideo] = useState(true);
+  const [copiedId, setCopiedId] = useState(false);
 
   // ─── Create a new RTCPeerConnection for a remote peer ─────────
   const createPeerConnection = useCallback(
@@ -635,6 +637,49 @@ const Meeting = () => {
   }, [audioEnabled, meetingId, socket, user]);
 
   const toggleVideo = useCallback(async () => {
+    if (screenSharing) {
+      // While screen sharing, toggle only affects the camera stream (for PiP),
+      // NOT the screen share being sent to peers or shown in the main tile.
+      if (videoEnabled) {
+        // Turn camera OFF — stop the camera track but keep screen share going
+        const camTrack = localStreamRef.current?.getVideoTracks()[0];
+        if (camTrack) camTrack.stop();
+        setVideoEnabled(false);
+        socket?.emit("toggle-media", {
+          roomId: meetingId,
+          userId: user?._id,
+          type: "video",
+          enabled: false,
+        });
+      } else {
+        // Turn camera ON — re-acquire camera into localStreamRef (PiP only)
+        try {
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          const newVideoTrack = newStream.getVideoTracks()[0];
+          const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+          localStreamRef.current?.addTrack(newVideoTrack);
+          // Update PiP preview if it exists
+          if (localCameraPreviewRef.current) {
+            localCameraPreviewRef.current.srcObject = localStreamRef.current;
+          }
+          setVideoEnabled(true);
+          socket?.emit("toggle-media", {
+            roomId: meetingId,
+            userId: user?._id,
+            type: "video",
+            enabled: true,
+          });
+        } catch (err) {
+          console.error("Failed to re-enable camera during screen share:", err);
+        }
+      }
+      return;
+    }
+
+    // Normal (no screen share) toggle
     if (videoEnabled) {
       // Turn OFF: stop video track to fully release camera hardware
       const videoTrack = localStreamRef.current?.getVideoTracks()[0];
@@ -686,7 +731,7 @@ const Meeting = () => {
         console.error("Failed to re-enable video:", err);
       }
     }
-  }, [videoEnabled, meetingId, socket, user]);
+  }, [videoEnabled, screenSharing, meetingId, socket, user]);
 
   const toggleScreenShare = async () => {
     if (screenSharing) {
@@ -695,11 +740,54 @@ const Meeting = () => {
         screenStreamRef.current.getTracks().forEach((t) => t.stop());
         screenStreamRef.current = null;
       }
+
+      // Restore local video element to camera stream
       if (localVideoRef.current && localStreamRef.current) {
         localVideoRef.current.srcObject = localStreamRef.current;
       }
-      // Replace tracks on all peer connections back to camera
-      replaceTrackOnAllPeers(localStreamRef.current);
+
+      // If camera is on, replace peer video tracks back to camera
+      const camTrack = localStreamRef.current?.getVideoTracks()[0];
+      if (
+        camTrack &&
+        !camTrack.readyState?.includes?.("ended") &&
+        videoEnabled
+      ) {
+        Object.values(peersRef.current).forEach((pc) => {
+          const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+          if (sender) {
+            sender.replaceTrack(camTrack).catch(console.error);
+          }
+        });
+      } else if (videoEnabled) {
+        // Camera track was stopped/ended — re-acquire it
+        try {
+          const newStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          const newTrack = newStream.getVideoTracks()[0];
+          const oldTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (oldTrack) localStreamRef.current.removeTrack(oldTrack);
+          localStreamRef.current?.addTrack(newTrack);
+          if (localVideoRef.current) {
+            localVideoRef.current.srcObject = localStreamRef.current;
+          }
+          Object.values(peersRef.current).forEach((pc) => {
+            const sender = pc
+              .getSenders()
+              .find((s) => s.track?.kind === "video");
+            if (sender) {
+              sender.replaceTrack(newTrack).catch(console.error);
+            }
+          });
+        } catch (err) {
+          console.error("Failed to restore camera after screen share:", err);
+        }
+      } else {
+        // Camera was off — just replace with the (ended) local track so peers see black
+        replaceTrackOnAllPeers(localStreamRef.current);
+      }
+
       setScreenSharing(false);
       socket?.emit("screen-share-stopped", {
         roomId: meetingId,
@@ -713,12 +801,23 @@ const Meeting = () => {
         });
         screenStreamRef.current = screenStream;
 
+        // Show screen share in the main local tile
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = screenStream;
         }
 
-        // Replace video track on all peer connections with screen
-        replaceTrackOnAllPeers(screenStream);
+        // Replace only the video track on peers with the screen track
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (screenTrack) {
+          Object.values(peersRef.current).forEach((pc) => {
+            const sender = pc
+              .getSenders()
+              .find((s) => s.track?.kind === "video");
+            if (sender) {
+              sender.replaceTrack(screenTrack).catch(console.error);
+            }
+          });
+        }
 
         setScreenSharing(true);
         socket?.emit("screen-share-started", {
@@ -727,11 +826,26 @@ const Meeting = () => {
           userName: user?.name,
         });
 
-        screenStream.getVideoTracks()[0].onended = () => {
+        // Handle browser "Stop sharing" button
+        screenTrack.onended = () => {
+          // Restore camera to main tile
           if (localVideoRef.current && localStreamRef.current) {
             localVideoRef.current.srcObject = localStreamRef.current;
           }
-          replaceTrackOnAllPeers(localStreamRef.current);
+          // Restore camera track on peers
+          const camTrack = localStreamRef.current?.getVideoTracks()[0];
+          if (camTrack && camTrack.readyState === "live") {
+            Object.values(peersRef.current).forEach((pc) => {
+              const sender = pc
+                .getSenders()
+                .find((s) => s.track?.kind === "video");
+              if (sender) {
+                sender.replaceTrack(camTrack).catch(console.error);
+              }
+            });
+          } else {
+            replaceTrackOnAllPeers(localStreamRef.current);
+          }
           screenStreamRef.current = null;
           setScreenSharing(false);
           socket?.emit("screen-share-stopped", {
@@ -872,6 +986,49 @@ const Meeting = () => {
     setReadyToJoin(true);
   };
 
+  // ─── PiP: keep camera preview alive while screen sharing ───
+  useEffect(() => {
+    if (
+      screenSharing &&
+      videoEnabled &&
+      localCameraPreviewRef.current &&
+      localStreamRef.current
+    ) {
+      localCameraPreviewRef.current.srcObject = localStreamRef.current;
+    }
+    if ((!screenSharing || !videoEnabled) && localCameraPreviewRef.current) {
+      localCameraPreviewRef.current.srcObject = null;
+    }
+  }, [screenSharing, videoEnabled]);
+
+  // Build peer entries list for rendering
+  const peerEntries = Object.entries(peers);
+  const pinnedEntry = pinnedPeer
+    ? peerEntries.find(([sid]) => sid === pinnedPeer)
+    : null;
+  const unpinnedEntries = pinnedPeer
+    ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
+    : peerEntries;
+
+  // Smart grid: compute participant count class for CSS
+  const totalInGrid = unpinnedEntries.length + 1; // +1 for local
+  const gridCountClass = pinnedPeer
+    ? "sidebar-grid"
+    : `count-${Math.min(totalInGrid, 10)}`;
+
+  // ─── Loading: waiting for camera/mic + host check ─────────────
+  if (!streamReady || !hostCheckDone) {
+    return (
+      <div className="lobby-container">
+        <div className="lobby-card">
+          <div className="lobby-spinner"></div>
+          <h2>Setting things up...</h2>
+          <p>Getting your camera & mic ready</p>
+        </div>
+      </div>
+    );
+  }
+
   // ─── Pre-join screen ──────────────────────────────────────────
   if (streamReady && hostCheckDone && !readyToJoin) {
     return (
@@ -929,35 +1086,6 @@ const Meeting = () => {
     );
   }
 
-  // ─── PiP: keep camera preview alive while screen sharing ───
-  useEffect(() => {
-    if (
-      screenSharing &&
-      localCameraPreviewRef.current &&
-      localStreamRef.current
-    ) {
-      localCameraPreviewRef.current.srcObject = localStreamRef.current;
-    }
-    if (!screenSharing && localCameraPreviewRef.current) {
-      localCameraPreviewRef.current.srcObject = null;
-    }
-  }, [screenSharing]);
-
-  // Build peer entries list for rendering
-  const peerEntries = Object.entries(peers);
-  const pinnedEntry = pinnedPeer
-    ? peerEntries.find(([sid]) => sid === pinnedPeer)
-    : null;
-  const unpinnedEntries = pinnedPeer
-    ? peerEntries.filter(([sid]) => sid !== pinnedPeer)
-    : peerEntries;
-
-  // Smart grid: compute participant count class for CSS
-  const totalInGrid = unpinnedEntries.length + 1; // +1 for local
-  const gridCountClass = pinnedPeer
-    ? "sidebar-grid"
-    : `count-${Math.min(totalInGrid, 10)}`;
-
   return (
     <div className="meeting-container">
       {/* Meeting header with room info */}
@@ -965,6 +1093,21 @@ const Meeting = () => {
         <div className="meeting-id">
           <span className="meeting-id-label">Room:</span>
           <span className="meeting-id-value">{meetingId}</span>
+          <button
+            className="copy-id-btn"
+            title="Copy meeting ID"
+            onClick={() => {
+              navigator.clipboard.writeText(meetingId).then(() => {
+                setCopiedId(true);
+                setTimeout(() => setCopiedId(false), 2000);
+              });
+            }}
+          >
+            {copiedId ? <MdCheck /> : <MdContentCopy />}
+            <span className="copy-id-text">
+              {copiedId ? "Copied!" : "Copy"}
+            </span>
+          </button>
         </div>
         <div className="meeting-members">
           <span className="member-icon">👥</span>
@@ -1010,7 +1153,17 @@ const Meeting = () => {
         {/* Screen share PiP – shows your camera while sharing screen */}
         {screenSharing && videoEnabled && (
           <div className="screen-share-pip">
-            <video ref={localCameraPreviewRef} autoPlay muted playsInline />
+            <video
+              ref={(el) => {
+                localCameraPreviewRef.current = el;
+                if (el && localStreamRef.current) {
+                  el.srcObject = localStreamRef.current;
+                }
+              }}
+              autoPlay
+              muted
+              playsInline
+            />
             <span className="pip-label">You</span>
           </div>
         )}

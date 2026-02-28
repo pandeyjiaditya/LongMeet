@@ -910,6 +910,30 @@ a:hover {
   letter-spacing: 0.5px;
   border: 1px solid var(--border-color);
 }
+.copy-id-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: rgba(244, 114, 182, 0.1);
+  color: var(--accent-light);
+  font-size: 0.78rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.copy-id-btn:hover {
+  background: rgba(244, 114, 182, 0.25);
+  border-color: var(--accent);
+}
+.copy-id-btn svg {
+  font-size: 0.9rem;
+}
+.copy-id-text {
+  letter-spacing: 0.3px;
+}
 .meeting-members {
   display: flex;
   align-items: center;
