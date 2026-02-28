@@ -16,35 +16,77 @@ const Logo = ({ size = "default", onClick, style }) => {
     >
       <span className="logo-icon" style={{ width: s.icon, height: s.icon }}>
         <svg
-          viewBox="0 0 24 24"
+          viewBox="0 0 64 40"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
-          style={{ width: s.icon * 0.55, height: s.icon * 0.55 }}
+          style={{ width: s.icon * 0.7, height: s.icon * 0.44 }}
         >
-          {/* Cozy couch / hangout icon */}
+          <defs>
+            <linearGradient
+              id="logoGrad"
+              x1="0"
+              y1="0"
+              x2="64"
+              y2="40"
+              gradientUnits="userSpaceOnUse"
+            >
+              <stop offset="0%" stopColor="#f472b6" />
+              <stop offset="50%" stopColor="#c084fc" />
+              <stop offset="100%" stopColor="#60a5fa" />
+            </linearGradient>
+          </defs>
+          {/* Infinity loop — two rounded loops meeting at centre */}
           <path
-            d="M4 14V10a2 2 0 012-2h12a2 2 0 012 2v4"
+            d="M32 20
+               C32 14, 26 8, 18 8
+               C10 8, 4 14, 4 20
+               C4 26, 10 32, 18 32
+               C26 32, 32 26, 32 20Z"
             stroke="#fff"
-            strokeWidth="2"
+            strokeWidth="3"
             strokeLinecap="round"
-          />
-          <path
-            d="M2 14a2 2 0 012-2h0a2 2 0 012 2v2H2v-2zM18 14a2 2 0 012-2h0a2 2 0 012 2v2h-4v-2z"
-            stroke="#fff"
-            strokeWidth="2"
+            strokeLinejoin="round"
             fill="none"
           />
           <path
-            d="M4 16h16v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2z"
+            d="M32 20
+               C32 26, 38 32, 46 32
+               C54 32, 60 26, 60 20
+               C60 14, 54 8, 46 8
+               C38 8, 32 14, 32 20Z"
             stroke="#fff"
-            strokeWidth="2"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
             fill="none"
           />
-          {/* Small heart accent */}
+          {/* Heart at the infinity crossing point */}
           <path
-            d="M12 7.5c-.5-1-2-1.5-2.5-.5s.5 2 2.5 3.5c2-1.5 3-2.5 2.5-3.5s-2-.5-2.5.5z"
+            d="M32 16
+               C30.5 13, 27 12.5, 27 15
+               C27 17, 32 21, 32 21
+               C32 21, 37 17, 37 15
+               C37 12.5, 33.5 13, 32 16Z"
             fill="#fff"
-            opacity="0.85"
+          />
+          {/* Two small person-dot accents in each loop */}
+          <circle cx="16" cy="18" r="2.2" fill="#fff" opacity="0.7" />
+          <circle cx="48" cy="18" r="2.2" fill="#fff" opacity="0.7" />
+          <path
+            d="M13.5 23.5a2.5 2.5 0 015 0"
+            stroke="#fff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            fill="none"
+            opacity="0.7"
+          />
+          <path
+            d="M45.5 23.5a2.5 2.5 0 015 0"
+            stroke="#fff"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            fill="none"
+            opacity="0.7"
           />
         </svg>
       </span>
